@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro - MapRisco</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .register-container {
+            display: flex;
+            height: 100vh;
+            align-items: stretch;
+        }
+
+        /* Lado Esquerdo - Verde */
+        .register-left {
+            background: linear-gradient(135deg, #7cb342 0%, #558b2f 50%, #33691e 100%);
+            width: 50%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            padding: 60px 40px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Padrão decorativo de fundo */
+        .register-left::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: 
+                radial-gradient(circle at 20% 50%, rgba(255,255,255,0.1) 1px, transparent 1px),
+                radial-gradient(circle at 60% 70%, rgba(255,255,255,0.1) 2px, transparent 2px),
+                radial-gradient(circle at 80% 20%, rgba(255,255,255,0.1) 1.5px, transparent 1.5px),
+                radial-gradient(circle at 40% 80%, rgba(255,255,255,0.1) 1px, transparent 1px),
+                radial-gradient(circle at 90% 60%, rgba(255,255,255,0.1) 1px, transparent 1px);
+            background-size: 200% 200%;
+            animation: bgMove 20s ease-in-out infinite;
+        }
+
+        @keyframes bgMove {
+            0%, 100% { background-position: 0% 0%; }
+            50% { background-position: 100% 100%; }
+        }
+
+        .register-left-content {
+            position: relative;
+            z-index: 2;
+            text-align: center;
+        }
+
+        .logo-marker {
+            width: 100px;
+            height: 100px;
+            margin: 0 auto 30px;
+            background: linear-gradient(135deg, #87cefa 0%, #4682b4 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 60px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+        }
+
+        .register-left h1 {
+            font-size: 56px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            letter-spacing: 2px;
+        }
+
+        .register-left p {
+            font-size: 16px;
+            font-weight: 300;
+            line-height: 1.6;
+            opacity: 0.95;
+            max-width: 300px;
+        }
+
+        /* Lado Direito - Branco */
+        .register-right {
+            width: 50%;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 40px 60px;
+            position: relative;
+            overflow-y: auto;
+        }
+
+        .register-form-wrapper {
+            width: 100%;
+            max-width: 420px;
+        }
+
+        .register-form-wrapper h2 {
+            font-size: 32px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 35px;
+        }
+
+        .form-group {
+            margin-bottom: 22px;
+        }
+
+        .form-group label {
+            font-size: 13px;
+            color: #999;
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-wrapper i {
+            position: absolute;
+            left: 16px;
+            color: #ccc;
+            font-size: 18px;
+            pointer-events: none;
+        }
+
+        .form-control {
+            width: 100%;
+            border: none;
+            border-bottom: 2px solid #e0e0e0;
+            padding: 12px 16px 12px 45px;
+            font-size: 14px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+            padding-right: 45px;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-bottom-color: #7cb342;
+            background: white;
+            box-shadow: 0 2px 8px rgba(124, 179, 66, 0.1);
+        }
+
+        .form-control::placeholder {
+            color: #bbb;
+        }
+
+        .lock-icon {
+            position: absolute;
+            right: 16px;
+            color: #ccc;
+            font-size: 16px;
+            pointer-events: none;
+        }
+
+        .btn-register {
+            width: 100%;
+            background: linear-gradient(135deg, #7cb342 0%, #689f38 100%);
+            border: none;
+            color: white;
+            padding: 14px 20px;
+            font-weight: 600;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(124, 179, 66, 0.2);
+            margin-top: 15px;
+            margin-bottom: 20px;
+        }
+
+        .btn-register:hover {
+            background: linear-gradient(135deg, #689f38 0%, #558b2f 100%);
+            box-shadow: 0 6px 20px rgba(124, 179, 66, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .btn-register:active {
+            transform: translateY(0);
+        }
+
+        .terms-text {
+            font-size: 12px;
+            color: #999;
+            text-align: center;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+
+        .terms-text a {
+            color: #2196f3;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s ease;
+        }
+
+        .terms-text a:hover {
+            color: #1976d2;
+        }
+
+        .login-link {
+            text-align: center;
+            padding-top: 15px;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        .login-link p {
+            color: #999;
+            font-size: 13px;
+            margin: 0;
+        }
+
+        .login-link a {
+            color: #2196f3;
+            font-weight: 600;
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .login-link a:hover {
+            color: #1976d2;
+        }
+
+        .alert {
+            border: none;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            animation: slideDown 0.3s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .alert-danger {
+            background-color: #ffebee;
+            color: #c62828;
+            border-left: 4px solid #c62828;
+        }
+
+        .alert-warning {
+            background-color: #fff8f0;
+            color: #e65100;
+            border-left: 4px solid #e65100;
+        }
+
+        .errorlist {
+            list-style: none;
+            padding: 0;
+            margin: 5px 0 0 0;
+            font-size: 11px;
+            color: #c62828;
+        }
+
+        .errorlist li {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 3px;
+        }
+
+        .errorlist li:before {
+            content: "⚠ ";
+        }
+
+        .btn-close {
+            opacity: 0.5;
+            font-size: 12px;
+        }
+
+        .btn-close:hover {
+            opacity: 1;
+        }
+
+        /* Responsivo */
+        @media (max-width: 768px) {
+            .register-container {
+                flex-direction: column;
+            }
+
+            .register-left {
+                width: 100%;
+                padding: 40px 30px;
+            }
+
+            .register-right {
+                width: 100%;
+                padding: 30px;
+                min-height: auto;
+            }
+
+            .register-left h1 {
+                font-size: 40px;
+            }
+
+            .register-left p {
+                font-size: 14px;
+            }
+
+            .register-form-wrapper h2 {
+                font-size: 28px;
+            }
+
+            .logo-marker {
+                width: 80px;
+                height: 80px;
+                font-size: 48px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .register-left {
+                padding: 30px 20px;
+            }
+
+            .register-right {
+                padding: 25px 20px;
+            }
+
+            .register-left h1 {
+                font-size: 32px;
+            }
+
+            .register-form-wrapper h2 {
+                font-size: 24px;
+                margin-bottom: 25px;
+            }
+
+            .form-group {
+                margin-bottom: 18px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="register-container">
+        <!-- Lado Esquerdo - Verde com Logo -->
+        <div class="register-left">
+            <div class="register-left-content">
+                <div class="logo-marker">
+                    <i class="fas fa-map-marker-alt"></i>
+                </div>
+                <h1>MAPRISCO</h1>
+                <p>Monitoramento de áreas de risco de alagamento</p>
+            </div>
+        </div>
+
+        <!-- Lado Direito - Formulário -->
+        <div class="register-right">
+            <div class="register-form-wrapper">
+                <h2>Criar Conta</h2>
+
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <strong>Erro no registro:</strong>
+                        {% for error in form.non_field_errors %}
+                            <div>{{ error }}</div>
+                        {% endfor %}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endif %}
+
+                <form method="post" novalidate>
+                    {% csrf_token %}
+
+                    <!-- Nome Completo Field -->
+                    <div class="form-group">
+                        <label for="id_full_name">Nome Completo</label>
+                        <div class="input-wrapper">
+                            <i class="fas fa-user"></i>
+                            {{ form.full_name }}
+                        </div>
+                        {% if form.full_name.errors %}
+                            <ul class="errorlist">
+                                {% for error in form.full_name.errors %}
+                                    <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </div>
+
+                    <!-- Username Field -->
+                    <div class="form-group">
+                        <label for="id_username">E-mail</label>
+                        <div class="input-wrapper">
+                            <i class="fas fa-envelope"></i>
+                            {{ form.username }}
+                        </div>
+                        {% if form.username.errors %}
+                            <ul class="errorlist">
+                                {% for error in form.username.errors %}
+                                    <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </div>
+
+                    <!-- Password1 Field -->
+                    <div class="form-group">
+                        <label for="id_password1">Senha</label>
+                        <div class="input-wrapper">
+                            <i class="fas fa-lock"></i>
+                            {{ form.password1 }}
+                            <i class="fas fa-lock lock-icon"></i>
+                        </div>
+                        {% if form.password1.errors %}
+                            <ul class="errorlist">
+                                {% for error in form.password1.errors %}
+                                    <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </div>
+
+                    <!-- Password2 Field -->
+                    <div class="form-group">
+                        <label for="id_password2">Confirme a Senha</label>
+                        <div class="input-wrapper">
+                            <i class="fas fa-lock"></i>
+                            {{ form.password2 }}
+                            <i class="fas fa-lock lock-icon"></i>
+                        </div>
+                        {% if form.password2.errors %}
+                            <ul class="errorlist">
+                                {% for error in form.password2.errors %}
+                                    <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </div>
+
+                    <button type="submit" class="btn-register">Registrar</button>
+
+                    <div class="terms-text">
+                        Ao se registrar, você concorda com nossos <a href="#">Termos de Serviço</a>
+                        e <a href="#">Política de Privacidade</a>.
+                    </div>
+
+                    <div class="login-link">
+                        <p>Já tem uma conta? <a href="{% url 'login' %}">Login</a></p>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Auto-dismiss alerts after 5 seconds
+        document.querySelectorAll('.alert').forEach(alert => {
+            if (!alert.querySelector('.errorlist')) {
+                setTimeout(() => {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }, 5000);
+            }
+        });
+
+        // Aplicar estilos nos campos do formulário
+        const formControls = document.querySelectorAll('.form-control');
+        formControls.forEach(control => {
+            if (control.classList.contains('is-invalid')) {
+                control.style.borderColor = '#c62828';
+            }
+        });
+    </script>
+    <style>
+        .form-control.is-invalid {
+            border-color: #c62828 !important;
+            background-color: #ffebee;
+        }
+
+        .form-control.is-invalid:focus {
+            border-color: #c62828 !important;
+            box-shadow: 0 2px 8px rgba(198, 40, 40, 0.1) !important;
+        }
+    </style>
+</body>
+</html>

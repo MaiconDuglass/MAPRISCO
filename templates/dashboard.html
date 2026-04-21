@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - MapRisco</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-main: #f1f3f6;
+            --panel: #ffffff;
+            --line: #e3e6ee;
+            --text: #2f3340;
+            --muted: #7c8599;
+            --green-1: #71b34b;
+            --green-2: #2f7f24;
+            --green-3: #214f1b;
+            --danger: #eb4747;
+            --warning: #f5b21f;
+            --safe: #34a853;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Montserrat', sans-serif;
+            color: var(--text);
+            background: var(--bg-main);
+        }
+
+        .layout {
+            min-height: 100vh;
+            display: grid;
+            grid-template-columns: 210px 1fr;
+        }
+
+        .sidebar {
+            background: linear-gradient(165deg, #80bf54 0%, #61a53e 32%, #2f7f24 100%);
+            color: #effee8;
+            position: relative;
+            overflow: hidden;
+            padding-top: 18px;
+        }
+
+        .sidebar::before,
+        .sidebar::after {
+            content: '';
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.09);
+            pointer-events: none;
+        }
+
+        .sidebar::before {
+            width: 260px;
+            height: 260px;
+            left: -130px;
+            top: -40px;
+        }
+
+        .sidebar::after {
+            width: 300px;
+            height: 300px;
+            left: -160px;
+            bottom: -170px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            font-size: 1.9rem;
+            font-weight: 800;
+            letter-spacing: 0.4px;
+            padding: 0 18px 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+            z-index: 2;
+        }
+
+        .brand i {
+            font-size: 1.6rem;
+        }
+
+        .menu {
+            margin-top: 14px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .menu a {
+            text-decoration: none;
+            color: #f4ffef;
+            padding: 12px 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 500;
+            transition: background 0.2s ease;
+        }
+
+        .menu a.active,
+        .menu a:hover {
+            background: rgba(26, 57, 20, 0.28);
+        }
+
+        .profile {
+            position: absolute;
+            left: 16px;
+            right: 16px;
+            bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.24);
+            padding-top: 12px;
+            z-index: 2;
+        }
+
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #d6efc8;
+            color: var(--green-3);
+            display: grid;
+            place-items: center;
+            font-size: 0.9rem;
+        }
+
+        .profile-meta {
+            min-width: 0;
+            flex: 1;
+        }
+
+        .profile-name {
+            font-size: 0.86rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1.2;
+            font-weight: 600;
+        }
+
+        .profile-meta a {
+            text-decoration: none;
+            color: #e4ffd8;
+            font-size: 0.75rem;
+        }
+
+        .main {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .topbar {
+            height: 62px;
+            border-bottom: 1px solid var(--line);
+            background: #f7f8fb;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 18px;
+            gap: 12px;
+        }
+
+        .search {
+            width: min(520px, 100%);
+            position: relative;
+        }
+
+        .search i {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9099ab;
+        }
+
+        .search input {
+            width: 100%;
+            height: 38px;
+            border-radius: 8px;
+            border: 1px solid #d9deea;
+            padding: 0 12px 0 32px;
+            background: #fff;
+            font-size: 0.9rem;
+            color: #4f5669;
+            outline: none;
+        }
+
+        .top-user {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #6f7890;
+            font-size: 0.84rem;
+        }
+
+        .notify {
+            position: relative;
+            color: #6a738a;
+            margin-right: 3px;
+        }
+
+        .notify::after {
+            content: '';
+            position: absolute;
+            right: -2px;
+            top: -2px;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #e43f3f;
+        }
+
+        .page {
+            padding: 14px 16px 18px;
+        }
+
+        .head {
+            text-align: center;
+            margin-bottom: 12px;
+            position: relative;
+        }
+
+        .btn-create {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            border: none;
+            border-radius: 6px;
+            min-height: 38px;
+            padding: 0 14px;
+            font-weight: 700;
+            color: #fff;
+            background: linear-gradient(145deg, #6cc257 0%, #4c9f3b 100%);
+            cursor: pointer;
+            box-shadow: 0 8px 18px rgba(60, 131, 48, 0.28);
+        }
+
+        .head h1 {
+            margin: 0;
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .head p {
+            margin: 3px 0 0;
+            color: var(--muted);
+            font-size: 0.88rem;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .stat {
+            border-radius: 6px;
+            color: #fff;
+            padding: 10px 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            min-height: 66px;
+            box-shadow: 0 8px 16px rgba(43, 56, 85, 0.17);
+        }
+
+        .stat.violet {
+            background: linear-gradient(135deg, #7162d7 0%, #5f4fb9 100%);
+        }
+
+        .stat.orange {
+            background: linear-gradient(135deg, #ffb838 0%, #f39516 100%);
+        }
+
+        .stat.blue {
+            background: linear-gradient(135deg, #52a9df 0%, #3892cc 100%);
+        }
+
+        .stat .value {
+            font-size: 2.05rem;
+            line-height: 1;
+            font-weight: 800;
+            margin-bottom: 1px;
+        }
+
+        .stat .label {
+            font-size: 0.92rem;
+            font-weight: 600;
+        }
+
+        .card {
+            border-radius: 4px;
+            border: 1px solid var(--line);
+            background: var(--panel);
+            overflow: hidden;
+        }
+
+        .card-title {
+            border-bottom: 1px solid var(--line);
+            background: #f8f9fb;
+            padding: 8px 10px;
+            font-weight: 600;
+            font-size: 0.96rem;
+            color: #4d5568;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1.15fr 1fr;
+            gap: 10px;
+        }
+
+        .left-stack,
+        .right-stack {
+            display: grid;
+            gap: 10px;
+        }
+
+        .chart-wrap {
+            height: 300px;
+            display: grid;
+            place-items: center;
+            padding: 14px;
+        }
+
+        .chart-wrap canvas {
+            max-height: 260px;
+            max-width: 100%;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+
+        th,
+        td {
+            border: 1px solid var(--line);
+            padding: 8px;
+            text-align: left;
+        }
+
+        thead {
+            background: #f4f6fb;
+            color: #697289;
+        }
+
+        .table-box {
+            padding: 8px;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-weight: 600;
+        }
+
+        .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .dot.alto {
+            background: var(--danger);
+        }
+
+        .dot.medio {
+            background: var(--warning);
+        }
+
+        .dot.baixo {
+            background: var(--safe);
+        }
+
+        .txt-alto {
+            color: var(--danger);
+        }
+
+        .txt-medio {
+            color: #c68c12;
+        }
+
+        .txt-baixo {
+            color: #2d9a4a;
+        }
+
+        .table-footer {
+            border-top: 1px solid var(--line);
+            padding: 8px;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .btn-all {
+            border: none;
+            border-radius: 4px;
+            min-height: 30px;
+            padding: 0 14px;
+            font-weight: 600;
+            color: #fff;
+            background: linear-gradient(145deg, #74c95e 0%, #57aa45 100%);
+            cursor: pointer;
+        }
+
+        .loading {
+            color: var(--muted);
+            padding: 12px;
+            font-size: 0.82rem;
+        }
+
+        .modal-wrap {
+            position: fixed;
+            inset: 0;
+            background: rgba(24, 31, 43, 0.35);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 14px;
+        }
+
+        .modal-wrap.show {
+            display: flex;
+        }
+
+        .modal-card {
+            width: min(680px, 100%);
+            max-height: 92vh;
+            overflow-y: auto;
+            background: #fff;
+            border-radius: 8px;
+            border: 1px solid #e2e6ef;
+            box-shadow: 0 20px 44px rgba(19, 29, 45, 0.3);
+        }
+
+        .modal-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 16px;
+            border-bottom: 1px solid #e7eaf0;
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: #3f465a;
+        }
+
+        .modal-close {
+            border: none;
+            background: transparent;
+            color: #8b93a7;
+            font-size: 1.1rem;
+            cursor: pointer;
+        }
+
+        .modal-body {
+            padding: 14px 16px 8px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .field {
+            display: grid;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+
+        .field.full {
+            grid-column: 1 / -1;
+        }
+
+        .field label {
+            color: #4a5266;
+            font-weight: 500;
+            font-size: 0.92rem;
+        }
+
+        .field .required::after {
+            content: ' *';
+            color: #df3f3f;
+        }
+
+        .field input,
+        .field select,
+        .field textarea {
+            width: 100%;
+            border-radius: 4px;
+            border: 1px solid #d6dbe8;
+            min-height: 38px;
+            padding: 8px 10px;
+            font-size: 0.92rem;
+            color: #434c61;
+            outline: none;
+        }
+
+        .field textarea {
+            min-height: 82px;
+            resize: vertical;
+        }
+
+        .modal-footer {
+            border-top: 1px solid #e7eaf0;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .btn-secondary {
+            border: 1px solid #d7dce8;
+            background: #f2f4f8;
+            color: #4f586d;
+            border-radius: 4px;
+            min-height: 34px;
+            min-width: 84px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            border: none;
+            border-radius: 4px;
+            min-height: 34px;
+            min-width: 84px;
+            font-weight: 600;
+            color: #fff;
+            background: linear-gradient(145deg, #4f79df 0%, #365dc2 100%);
+            cursor: pointer;
+        }
+
+        .form-message {
+            margin-top: 6px;
+            font-size: 0.84rem;
+            color: #ca2f2f;
+        }
+
+        .form-message.success {
+            color: #2c9a48;
+        }
+
+        @media (max-width: 1100px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                min-height: 260px;
+            }
+
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stats {
+                grid-template-columns: 1fr;
+            }
+
+            .btn-create {
+                position: static;
+                transform: none;
+                margin-top: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <aside class="sidebar">
+            <div class="brand"><i class="fa-solid fa-location-dot"></i>MAPRISCO</div>
+            <nav class="menu">
+                <a href="/"><i class="fa-solid fa-location-dot"></i>Mapa</a>
+                <a class="active" href="/dashboard/"><i class="fa-solid fa-table-cells-large"></i>Dashboard</a>
+                <a href="#"><i class="fa-solid fa-bell"></i>Alertas</a>
+                <a href="#"><i class="fa-solid fa-triangle-exclamation"></i>Areas de risco</a>
+            </nav>
+
+            <div class="profile">
+                <div class="avatar"><i class="fa-solid fa-user"></i></div>
+                <div class="profile-meta">
+                    <div class="profile-name">{% if user.is_authenticated %}{{ user.username|truncatechars:26 }}{% else %}visitante{% endif %}</div>
+                    {% if user.is_authenticated %}
+                    <a href="{% url 'logout' %}">Logout</a>
+                    {% else %}
+                    <a href="{% url 'login' %}">Login</a>
+                    {% endif %}
+                </div>
+            </div>
+        </aside>
+
+        <main class="main">
+            <header class="topbar">
+                <div class="search">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" placeholder="Pesquise na Mapa...">
+                </div>
+                <div class="top-user">
+                    <span>Ola, {% if user.is_authenticated %}{{ user.username|truncatechars:22 }}{% else %}usuario{% endif %}</span>
+                    <i class="fa-regular fa-bell notify"></i>
+                    <div class="avatar"><i class="fa-solid fa-user"></i></div>
+                </div>
+            </header>
+
+            <section class="page">
+                <div class="head">
+                    <h1>Dashboard do Sistema MAPRISCO</h1>
+                    <p>Visao geral dos dados de monitoramento</p>
+                    <button id="openCreateArea" class="btn-create" type="button">Cadastrar Area de Risco</button>
+                </div>
+
+                <div class="stats">
+                    <article class="stat violet">
+                        <div>
+                            <div class="value" id="total-areas">0</div>
+                            <div class="label">Total de Areas</div>
+                        </div>
+                        <i class="fa-solid fa-map-location-dot fa-xl"></i>
+                    </article>
+                    <article class="stat orange">
+                        <div>
+                            <div class="value" id="total-alertas">0</div>
+                            <div class="label">Total de Alertas</div>
+                        </div>
+                        <i class="fa-solid fa-bell fa-xl"></i>
+                    </article>
+                    <article class="stat blue">
+                        <div>
+                            <div class="value" id="total-registros">0</div>
+                            <div class="label">Total de Registros</div>
+                        </div>
+                        <i class="fa-solid fa-clipboard-list fa-xl"></i>
+                    </article>
+                </div>
+
+                <div class="grid">
+                    <div class="left-stack">
+                        <article class="card">
+                            <div class="card-title">Distribuicao de Niveis de Risco</div>
+                            <div class="chart-wrap">
+                                <canvas id="riskChart"></canvas>
+                            </div>
+                        </article>
+
+                        <article class="card">
+                            <div class="card-title">Alertas Recentes <span style="float:right; font-weight:500;">Ver Todos</span></div>
+                            <div class="table-box">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Data e Hora</th>
+                                            <th>Area</th>
+                                            <th>Nivel</th>
+                                            <th>Alerta</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="left-alertas-body">
+                                        <tr><td colspan="4" class="loading">Carregando...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </article>
+                    </div>
+
+                    <div class="right-stack">
+                        <article class="card">
+                            <div class="card-title">Ultimos Registros</div>
+                            <div class="table-box">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Data e Hora</th>
+                                            <th>Area</th>
+                                            <th>Nivel</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="registros-body">
+                                        <tr><td colspan="4" class="loading">Carregando...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="table-footer">
+                                <button class="btn-all" type="button">Ver Todos</button>
+                            </div>
+                        </article>
+
+                        <article class="card">
+                            <div class="card-title">Alertas Recentes</div>
+                            <div class="table-box">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Data e Hora</th>
+                                            <th>Area</th>
+                                            <th>Nivel</th>
+                                            <th>Alerta</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="alertas-body">
+                                        <tr><td colspan="4" class="loading">Carregando...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="table-footer">
+                                <button class="btn-all" type="button">Ver Todos</button>
+                            </div>
+                        </article>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div class="modal-wrap" id="areaModal" aria-hidden="true">
+        <div class="modal-card">
+            <div class="modal-head">
+                <span>Cadastrar Area de Risco</span>
+                <button type="button" class="modal-close" id="closeAreaModal" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="areaForm">
+                <div class="modal-body">
+                    <div class="form-grid">
+                        <div class="field full">
+                            <label class="required">Nome</label>
+                            <input type="text" id="areaNome" name="nome" placeholder="Rua das Palmeiras" required>
+                        </div>
+
+                        <div class="field full">
+                            <label class="required">Bairro</label>
+                            <input type="text" id="areaBairro" name="bairro" placeholder="Centro" required>
+                        </div>
+
+                        <div class="field">
+                            <label>Latitude</label>
+                            <input type="number" id="areaLatitude" name="latitude" step="0.000001" placeholder="-6.062623" required>
+                        </div>
+
+                        <div class="field">
+                            <label>Longitude</label>
+                            <input type="number" id="areaLongitude" name="longitude" step="0.000001" placeholder="-49.895450" required>
+                        </div>
+
+                        <div class="field full">
+                            <label class="required">Nivel de Risco</label>
+                            <select id="areaNivel" name="nivel_risco" required>
+                                <option value="alto">Alto</option>
+                                <option value="medio">Medio</option>
+                                <option value="baixo">Baixo</option>
+                            </select>
+                        </div>
+
+                        <div class="field full">
+                            <label>Descricao</label>
+                            <textarea id="areaDescricao" name="descricao" placeholder="Essa rua alaga nas chuvas fortes."></textarea>
+                        </div>
+
+                        <div class="field full">
+                            <label>Enviar uma Foto (opcional)</label>
+                            <input type="file" id="areaFoto" name="foto" accept="image/*">
+                        </div>
+                    </div>
+                    <div id="areaFormMessage" class="form-message"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn-primary" id="saveAreaBtn">Salvar</button>
+                    <button type="button" class="btn-secondary" id="cancelAreaBtn">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let riskChart;
+        const areaModal = document.getElementById('areaModal');
+        const areaForm = document.getElementById('areaForm');
+        const areaFormMessage = document.getElementById('areaFormMessage');
+        const saveAreaBtn = document.getElementById('saveAreaBtn');
+
+        function parseApiList(payload) {
+            if (Array.isArray(payload)) {
+                return payload;
+            }
+            if (payload && Array.isArray(payload.results)) {
+                return payload.results;
+            }
+            return [];
+        }
+
+        function normalizeRisk(value) {
+            return (value || '').toString().toLowerCase().trim();
+        }
+
+        function riskClass(riskValue) {
+            const risk = normalizeRisk(riskValue);
+            if (risk === 'alto' || risk.includes('critic')) {
+                return 'alto';
+            }
+            if (risk === 'medio' || risk.includes('alert')) {
+                return 'medio';
+            }
+            return 'baixo';
+        }
+
+        function fmtDate(value) {
+            if (!value) {
+                return '-';
+            }
+            const dt = new Date(value);
+            if (Number.isNaN(dt.getTime())) {
+                return '-';
+            }
+            return dt.toLocaleString('pt-BR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function riskBadgeText(risk) {
+            if (risk === 'alto') {
+                return 'Critico';
+            }
+            if (risk === 'medio') {
+                return 'Alerta';
+            }
+            return 'Seguro';
+        }
+
+        function buildRiskBadge(risk) {
+            const label = riskBadgeText(risk);
+            return `<span class="badge txt-${risk}"><span class="dot ${risk}"></span>${label}</span>`;
+        }
+
+        function updateCards(areas, alertas, registros) {
+            document.getElementById('total-areas').textContent = areas.length;
+            document.getElementById('total-alertas').textContent = alertas.length;
+            document.getElementById('total-registros').textContent = registros.length;
+        }
+
+        function renderChart(areas) {
+            const counts = { alto: 0, medio: 0, baixo: 0 };
+
+            areas.forEach((area) => {
+                const risk = riskClass(area.nivel_risco);
+                counts[risk] += 1;
+            });
+
+            const ctx = document.getElementById('riskChart').getContext('2d');
+            if (riskChart) {
+                riskChart.destroy();
+            }
+
+            riskChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Critico', 'Alerta', 'Seguro'],
+                    datasets: [{
+                        data: [counts.alto, counts.medio, counts.baixo],
+                        backgroundColor: ['#eb4747', '#f5c112', '#34a853'],
+                        borderWidth: 0,
+                        hoverOffset: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '52%',
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                boxWidth: 16,
+                                color: '#67708a',
+                                font: {
+                                    family: 'Montserrat'
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function areaName(record) {
+            return record.area_nome || record.nome_area || (record.area ? `Area ${record.area}` : 'Sem area');
+        }
+
+        function renderRegistrosTable(registros, areasMap) {
+            const tbody = document.getElementById('registros-body');
+            const rows = registros.slice().reverse().slice(0, 5);
+
+            if (!rows.length) {
+                tbody.innerHTML = '<tr><td colspan="4" class="loading">Sem registros.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = rows.map((row) => {
+                const risk = riskClass((areasMap[row.area] || {}).nivel_risco || row.status);
+                return `
+                    <tr>
+                        <td>${fmtDate(row.data_hora)}</td>
+                        <td>${areaName(row)}</td>
+                        <td>${buildRiskBadge(risk)}</td>
+                        <td>${row.status || '-'}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderAlertasTable(alertas, targetId) {
+            const tbody = document.getElementById(targetId);
+            const rows = alertas.slice().reverse().slice(0, 5);
+
+            if (!rows.length) {
+                tbody.innerHTML = '<tr><td colspan="4" class="loading">Sem alertas.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = rows.map((row) => {
+                const risk = riskClass(row.nivel);
+                return `
+                    <tr>
+                        <td>${fmtDate(row.data_hora)}</td>
+                        <td>${row.area_nome || (row.area ? `Area ${row.area}` : 'Sem area')}</td>
+                        <td>${buildRiskBadge(risk)}</td>
+                        <td>${row.mensagem || '-'}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function loadDashboard() {
+            try {
+                const [areasRes, alertasRes, monitoramentoRes] = await Promise.all([
+                    fetch('/api/areas/'),
+                    fetch('/api/alertas/'),
+                    fetch('/api/monitoramento/')
+                ]);
+
+                if (!areasRes.ok || !alertasRes.ok || !monitoramentoRes.ok) {
+                    throw new Error('Falha ao carregar dados do dashboard.');
+                }
+
+                const [areasRaw, alertasRaw, monitoramentoRaw] = await Promise.all([
+                    areasRes.json(),
+                    alertasRes.json(),
+                    monitoramentoRes.json()
+                ]);
+
+                const areas = parseApiList(areasRaw);
+                const alertas = parseApiList(alertasRaw);
+                const monitoramento = parseApiList(monitoramentoRaw);
+
+                const areasMap = {};
+                areas.forEach((area) => {
+                    if (area.id !== undefined && area.id !== null) {
+                        areasMap[area.id] = area;
+                    }
+                });
+
+                updateCards(areas, alertas, monitoramento);
+                renderChart(areas);
+                renderRegistrosTable(monitoramento, areasMap);
+                renderAlertasTable(alertas, 'alertas-body');
+                renderAlertasTable(alertas, 'left-alertas-body');
+            } catch (error) {
+                console.error(error);
+                document.getElementById('registros-body').innerHTML = '<tr><td colspan="4" class="loading">Erro ao carregar.</td></tr>';
+                document.getElementById('alertas-body').innerHTML = '<tr><td colspan="4" class="loading">Erro ao carregar.</td></tr>';
+                document.getElementById('left-alertas-body').innerHTML = '<tr><td colspan="4" class="loading">Erro ao carregar.</td></tr>';
+            }
+        }
+
+        function openAreaModal() {
+            areaModal.classList.add('show');
+            areaModal.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeAreaModal() {
+            areaModal.classList.remove('show');
+            areaModal.setAttribute('aria-hidden', 'true');
+            areaFormMessage.textContent = '';
+            areaFormMessage.className = 'form-message';
+        }
+
+        async function submitAreaForm(event) {
+            event.preventDefault();
+            areaFormMessage.textContent = '';
+            areaFormMessage.className = 'form-message';
+
+            const formData = new FormData(areaForm);
+
+            saveAreaBtn.disabled = true;
+            saveAreaBtn.textContent = 'Salvando...';
+
+            try {
+                const response = await fetch('/api/areas/', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.json().catch(() => ({}));
+                    const errorText = Object.values(errorBody).flat().join(' ') || 'Nao foi possivel salvar a area.';
+                    throw new Error(errorText);
+                }
+
+                areaFormMessage.textContent = 'Area cadastrada com sucesso.';
+                areaFormMessage.classList.add('success');
+                areaForm.reset();
+                await loadDashboard();
+
+                setTimeout(() => {
+                    closeAreaModal();
+                }, 900);
+            } catch (error) {
+                areaFormMessage.textContent = error.message || 'Erro ao salvar area.';
+            } finally {
+                saveAreaBtn.disabled = false;
+                saveAreaBtn.textContent = 'Salvar';
+            }
+        }
+
+        document.getElementById('openCreateArea').addEventListener('click', openAreaModal);
+        document.getElementById('closeAreaModal').addEventListener('click', closeAreaModal);
+        document.getElementById('cancelAreaBtn').addEventListener('click', closeAreaModal);
+        areaModal.addEventListener('click', (event) => {
+            if (event.target === areaModal) {
+                closeAreaModal();
+            }
+        });
+        areaForm.addEventListener('submit', submitAreaForm);
+
+        document.addEventListener('DOMContentLoaded', loadDashboard);
+    </script>
+</body>
+</html>
