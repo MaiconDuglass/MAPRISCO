@@ -30,16 +30,27 @@ if (registerForm) {
     const password = document.getElementById('password').value;
     const confirmPassword = document.getElementById('confirmPassword').value;
     const terms = document.getElementById('terms').checked;
+    const clientError = document.getElementById('clientError');
+
+    // Mostra o erro no próprio formulário (em vez do alert do navegador)
+    function mostrarErro(mensagem) {
+      e.preventDefault();
+      clientError.innerHTML = '';
+      const item = document.createElement('li');
+      item.textContent = mensagem;
+      clientError.appendChild(item);
+      clientError.hidden = false;
+    }
+
+    clientError.hidden = true;
 
     if (password !== confirmPassword) {
-      e.preventDefault();
-      alert('As senhas não correspondem!');
+      mostrarErro('As senhas não correspondem.');
       return;
     }
 
     if (!terms) {
-      e.preventDefault();
-      alert('Você deve concordar com os Termos de Serviço');
+      mostrarErro('Você deve concordar com os Termos de Serviço e a Política de Privacidade.');
       return;
     }
   });

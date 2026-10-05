@@ -1,22 +1,14 @@
 {% extends 'base.html' %}
 {% load static %}
-{% block title %}Monitoramento - MapRisco{% endblock %}
+{% block title %}Monitoramento - MAPRISCO{% endblock %}
+{% block page_title %}Monitoramento{% endblock %}
 {% block extra_css %}
     <style>
         .monitor-grid {
             display: grid;
             grid-template-columns: 340px 1fr;
             gap: 14px;
-            margin-top: 14px;
             align-items: start;
-        }
-
-        .panel {
-            background: var(--panel);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 16px;
-            box-shadow: 0 8px 24px rgba(22, 29, 44, 0.08);
         }
 
         .panel h3 {
@@ -60,22 +52,6 @@
             color: #434c61;
             outline: none;
             background: #fff;
-        }
-
-        .btn-primary {
-            border: none;
-            border-radius: 8px;
-            min-height: 42px;
-            width: 100%;
-            font-weight: 700;
-            color: #fff;
-            background: linear-gradient(145deg, #74c95e 0%, #57aa45 100%);
-            cursor: pointer;
-        }
-
-        .btn-primary:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
         }
 
         .form-message {
@@ -128,6 +104,53 @@
 
         .loading { color: var(--text-2); padding: 12px; font-size: 0.82rem; }
 
+        .list-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+
+        .list-head h3 { margin: 0; }
+
+        .list-head select {
+            border-radius: 7px;
+            border: 1px solid #d6dbe8;
+            min-height: 38px;
+            padding: 0 10px;
+            font-size: 0.88rem;
+            color: #434c61;
+            background: #fff;
+            max-width: 100%;
+        }
+
+        .table-scroll { overflow-x: auto; }
+
+        .pager {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-top: 12px;
+            font-size: 0.85rem;
+            color: var(--text-2);
+        }
+
+        .pager button {
+            border: 1px solid #d7dce8;
+            background: #fff;
+            color: #4f586d;
+            border-radius: 8px;
+            min-height: 36px;
+            padding: 0 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .pager button:disabled { opacity: 0.45; cursor: not-allowed; }
+
         @media (max-width: 980px) {
             .monitor-grid { grid-template-columns: 1fr; }
         }
@@ -135,17 +158,18 @@
 {% endblock %}
 
 {% block content %}
-<section class="content">
-    <div style="text-align:center; margin-bottom:12px;">
-        <h1 style="margin:0; font-size:2rem; font-weight:700;">Registro de Monitoramento</h1>
-        <p style="margin:3px 0 0; color:var(--text-2); font-size:0.88rem;">Cadastre o nível de água e acompanhe o histórico automático</p>
+<section class="page">
+    <div class="page-head">
+        <div>
+            <h1>Registro de Monitoramento</h1>
+            <p>Cadastre o nível de água e acompanhe o histórico automático</p>
+        </div>
     </div>
 
     <div class="monitor-grid">
         <div class="panel">
             <h3>Nova Medição</h3>
-            <p>O status é classificado automaticamente: acima de 80 cm = Crítico, acima de 50 cm = Alerta.</p>
-            {% if user.is_authenticated %}
+            <p>O status é classificado automaticamente: a partir de 80 cm = Crítico, a partir de 50 cm = Alerta.</p>
             <form id="medicaoForm">
                 <div class="field">
                     <label class="required">Área de Risco</label>
@@ -157,19 +181,22 @@
                     <label class="required">Nível de Água (cm)</label>
                     <input type="number" id="medicaoNivel" name="nivel_agua" step="0.01" min="0" placeholder="Ex.: 85.5" required>
                 </div>
-                <button type="submit" class="btn-primary" id="saveMedicaoBtn">Registrar medição</button>
+                <button type="submit" class="btn-main" id="saveMedicaoBtn" style="width:100%;">Registrar medição</button>
                 <div id="medicaoFormMessage" class="form-message"></div>
             </form>
-            {% else %}
-            <p class="info-box"><i class="fa-solid fa-circle-info"></i> Você precisa <a href="{% url 'login' %}">fazer login</a> para registrar medições.</p>
-            {% endif %}
             <div class="info-box">
-                <i class="fa-solid fa-circle-info"></i> Ao registrar um nível crítico (≥ 80 cm), um alerta de alta prioridade é gerado automaticamente.
+                <i class="fa-solid fa-circle-info"></i> Ao registrar um nível crítico (a partir de 80 cm), um alerta crítico é gerado automaticamente e os administradores são avisados por e-mail.
             </div>
         </div>
 
         <div class="panel">
-            <h3>Últimos Registros</h3>
+            <div class="list-head">
+                <h3>Histórico de Medições</h3>
+                <select id="filtroArea" aria-label="Filtrar por área">
+                    <option value="">Todas as áreas</option>
+                </select>
+            </div>
+            <div class="table-scroll">
             <table>
                 <thead>
                     <tr>
@@ -183,6 +210,12 @@
                     <tr><td colspan="4" class="loading">Carregando...</td></tr>
                 </tbody>
             </table>
+            </div>
+            <div class="pager">
+                <button type="button" id="pagAnterior" disabled><i class="fa-solid fa-chevron-left"></i> Anterior</button>
+                <span id="pagInfo"></span>
+                <button type="button" id="pagProxima" disabled>Próxima <i class="fa-solid fa-chevron-right"></i></button>
+            </div>
         </div>
     </div>
 </section>
@@ -190,102 +223,86 @@
 
 {% block scripts %}
     <script>
+        const POR_PAGINA = 15;
         const medicaoForm = document.getElementById('medicaoForm');
         const medicaoArea = document.getElementById('medicaoArea');
+        const filtroArea = document.getElementById('filtroArea');
         const medicaoFormMessage = document.getElementById('medicaoFormMessage');
         const saveMedicaoBtn = document.getElementById('saveMedicaoBtn');
-        let areasMap = {};
+        const pagAnterior = document.getElementById('pagAnterior');
+        const pagProxima = document.getElementById('pagProxima');
+        const pagInfo = document.getElementById('pagInfo');
+        let paginaAtual = 1;
 
-        function parseApiList(payload) {
-            if (Array.isArray(payload)) return payload;
-            if (payload && Array.isArray(payload.results)) return payload.results;
-            return [];
-        }
-
-        function getCookie(name) {
-            const cookieValue = document.cookie
-                .split('; ')
-                .find((row) => row.startsWith(name + '='));
-            return cookieValue ? decodeURIComponent(cookieValue.split('=')[1]) : '';
-        }
-
-        function fmtDate(value) {
-            if (!value) return '-';
-            const dt = new Date(value);
-            if (Number.isNaN(dt.getTime())) return '-';
-            return dt.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-        }
-
-        function esc(text) {
-            return String(text || '').replace(/[&<>"']/g, function(m) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]; });
-        }
-
-        function riskClass(value) {
+        function statusClass(value) {
             const v = (value || '').toString().toLowerCase();
-            if (v === 'critico' || v === 'alto' || v.includes('critic')) return 'alto';
-            if (v === 'alerta' || v === 'medio' || v.includes('alert')) return 'medio';
+            if (v === 'critico') return 'alto';
+            if (v === 'alerta') return 'medio';
             return 'baixo';
         }
 
-        function riskBadgeText(risk) {
-            if (risk === 'alto') return 'Crítico';
-            if (risk === 'medio') return 'Alerta';
-            return 'Normal';
-        }
-
-        function buildBadge(risk) {
-            const label = riskBadgeText(risk);
+        function buildBadge(status) {
+            const risk = statusClass(status);
+            const label = risk === 'alto' ? 'Crítico' : risk === 'medio' ? 'Alerta' : 'Normal';
             return `<span class="badge txt-${risk}"><span class="dot ${risk}"></span>${label}</span>`;
-        }
-
-        function areaName(record) {
-            if (record.area_nome) return record.area_nome;
-            if (record.area && areasMap[record.area]) return areasMap[record.area].nome;
-            return record.area ? `Área ${record.area}` : 'Sem área';
         }
 
         async function loadAreas() {
             try {
-                const response = await fetch('/api/areas/', { credentials: 'same-origin' });
-                if (!response.ok) throw new Error('Falha ao carregar áreas.');
-                const areas = parseApiList(await response.json());
-                areas.forEach((area) => { if (area.id !== undefined && area.id !== null) areasMap[area.id] = area; });
-                if (!medicaoArea) return;
-                medicaoArea.innerHTML = '<option value="">Selecione...</option>' + areas
+                const areas = await fetchAll('/api/areas/');
+                const options = areas
                     .map((a) => `<option value="${a.id}">${esc(a.nome)}${a.bairro ? ' — ' + esc(a.bairro) : ''}</option>`)
                     .join('');
+                medicaoArea.innerHTML = '<option value="">Selecione...</option>' + options;
+                filtroArea.innerHTML = '<option value="">Todas as áreas</option>' + options;
+
+                // Vindo do mapa (/monitoramento/?area=ID): já seleciona a área
+                const areaUrl = new URLSearchParams(window.location.search).get('area');
+                if (areaUrl && areas.some((a) => String(a.id) === areaUrl)) {
+                    medicaoArea.value = areaUrl;
+                    filtroArea.value = areaUrl;
+                }
             } catch (error) {
                 console.error(error);
+                avisar('Não foi possível carregar a lista de áreas.');
             }
         }
 
-        async function loadRegistros() {
+        async function loadRegistros(pagina = 1) {
             const tbody = document.getElementById('registros-body');
+            const params = new URLSearchParams({ page: pagina, page_size: POR_PAGINA });
+            if (filtroArea.value) params.set('area', filtroArea.value);
             try {
-                const response = await fetch('/api/monitoramento/', { credentials: 'same-origin' });
+                const response = await fetch(`/api/monitoramento/?${params}`, { credentials: 'same-origin' });
                 if (!response.ok) throw new Error('Falha ao carregar registros.');
-                const registros = parseApiList(await response.json());
+                const data = await response.json();
+                const registros = parseApiList(data);
+                const total = data.count ?? registros.length;
+                const totalPaginas = Math.max(1, Math.ceil(total / POR_PAGINA));
+                paginaAtual = pagina;
+
+                pagAnterior.disabled = !data.previous;
+                pagProxima.disabled = !data.next;
+                pagInfo.textContent = total ? `Página ${pagina} de ${totalPaginas} · ${total} medição(ões)` : '';
+
                 if (!registros.length) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="loading">Sem registros.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="4" class="loading">Nenhuma medição registrada.</td></tr>';
                     return;
                 }
-                tbody.innerHTML = registros.slice(0, 10).map((row) => {
-                    const risk = riskClass(row.status || 'normal');
-                    return `
+                tbody.innerHTML = registros.map((row) => `
                         <tr>
                             <td>${fmtDate(row.data_hora)}</td>
-                            <td>${esc(areaName(row))}</td>
-                            <td>${row.nivel_agua ?? '-'} cm</td>
-                            <td>${buildBadge(risk)}</td>
-                        </tr>`;
-                }).join('');
+                            <td>${esc(row.area_nome || 'Sem área')}</td>
+                            <td>${fmtNivel(row.nivel_agua)}</td>
+                            <td>${buildBadge(row.status)}</td>
+                        </tr>`).join('');
             } catch (error) {
                 console.error(error);
                 tbody.innerHTML = '<tr><td colspan="4" class="loading">Erro ao carregar.</td></tr>';
             }
         }
 
-        if (medicaoForm) medicaoForm.addEventListener('submit', async (event) => {
+        medicaoForm.addEventListener('submit', async (event) => {
             event.preventDefault();
             medicaoFormMessage.textContent = '';
             medicaoFormMessage.className = 'form-message';
@@ -300,15 +317,17 @@
                     headers: { 'X-CSRFToken': getCookie('csrftoken') },
                     body: formData
                 });
+                const body = await response.json().catch(() => ({}));
                 if (!response.ok) {
-                    const errorBody = await response.json().catch(() => ({}));
-                    const errorText = Object.values(errorBody).flat().join(' ') || 'Não foi possível registrar a medição.';
+                    const errorText = Object.values(body).flat().join(' ') || 'Não foi possível registrar a medição.';
                     throw new Error(errorText);
                 }
-                medicaoFormMessage.textContent = 'Medição registrada com sucesso.';
-                medicaoFormMessage.classList.add('success');
+                const status = body.status === 'critico' ? 'Crítico — um alerta foi gerado.' : body.status === 'alerta' ? 'Alerta.' : 'Normal.';
+                avisar(`Medição registrada. Status: ${status}`, 'sucesso');
+                const areaEscolhida = medicaoArea.value;
                 medicaoForm.reset();
-                await loadRegistros();
+                medicaoArea.value = areaEscolhida;
+                await loadRegistros(1);
             } catch (error) {
                 medicaoFormMessage.textContent = error.message || 'Erro ao registrar medição.';
             } finally {
@@ -317,9 +336,13 @@
             }
         });
 
-        document.addEventListener('DOMContentLoaded', () => {
-            loadAreas();
-            loadRegistros();
+        filtroArea.addEventListener('change', () => loadRegistros(1));
+        pagAnterior.addEventListener('click', () => loadRegistros(paginaAtual - 1));
+        pagProxima.addEventListener('click', () => loadRegistros(paginaAtual + 1));
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadAreas();
+            loadRegistros(1);
         });
     </script>
 {% endblock %}

@@ -1,9 +1,66 @@
 {% extends 'base.html' %}
 {% load static %}
-{% block title %}MapRisco - Mapa{% endblock %}
+{% block title %}Mapa - MAPRISCO{% endblock %}
+{% block page_title %}Mapa{% endblock %}
 {% block extra_css %}
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="{% static 'leaflet/leaflet.css' %}">
     <style>
+        .editar-card .campo {
+            display: grid;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+
+        .editar-card label {
+            font-weight: 600;
+            font-size: 0.88rem;
+            color: #4a5266;
+        }
+
+        .editar-card input,
+        .editar-card select,
+        .editar-card textarea {
+            border: 1px solid #d6dbe8;
+            border-radius: 8px;
+            min-height: 40px;
+            padding: 8px 10px;
+            font-size: 0.92rem;
+            width: 100%;
+        }
+
+        .editar-card textarea { min-height: 80px; resize: vertical; }
+
+        .form-erro {
+            color: #ca2f2f;
+            font-size: 0.85rem;
+            min-height: 1.2em;
+            margin-bottom: 8px;
+        }
+
+        .map-legend {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 8px 12px;
+            border-radius: 8px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+            font-size: 0.82rem;
+            line-height: 1.7;
+            color: var(--text-1);
+        }
+
+        .map-legend strong {
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        .legend-dot {
+            display: inline-block;
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            margin-right: 7px;
+            vertical-align: middle;
+        }
+
         .stats {
             display: grid;
             grid-template-columns: repeat(4, minmax(170px, 1fr));
@@ -21,18 +78,45 @@
 
         .filters {
             display: grid;
-            grid-template-columns: auto auto minmax(180px, 220px) 1fr auto;
+            grid-template-columns: auto minmax(180px, 220px) 1fr auto;
             gap: 10px;
             align-items: center;
         }
 
-        .check {
+        .chips {
             display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .chip {
+            border: 1px solid #d8dde8;
+            background: #fff;
+            color: #5b6478;
+            border-radius: 20px;
+            min-height: 36px;
+            padding: 0 14px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: inline-flex;
             align-items: center;
-            gap: 8px;
-            color: #70798d;
-            font-size: 0.87rem;
-            white-space: nowrap;
+            gap: 7px;
+            cursor: pointer;
+            transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+        }
+
+        .chip .dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+        }
+
+        .chip:hover { border-color: #b9c1d1; }
+
+        .chip.active {
+            background: var(--navy);
+            border-color: var(--navy);
+            color: #fff;
         }
 
         .form-field {
@@ -84,7 +168,23 @@
             box-shadow: 0 14px 28px rgba(36, 42, 56, 0.16);
             padding: 14px;
             z-index: 800;
+            max-height: calc(100% - 32px);
+            overflow-y: auto;
         }
+
+        .history-box {
+            position: relative;
+            height: 150px;
+            margin-top: 10px;
+        }
+
+        .ultima-medicao {
+            font-size: 0.86rem;
+            color: #697287;
+            margin-top: 6px;
+        }
+
+        .ultima-medicao strong { color: var(--text-1); }
 
         .info-head {
             display: flex;
@@ -162,6 +262,7 @@
 
         .info-actions {
             display: flex;
+            flex-wrap: wrap;
             gap: 10px;
             margin-top: 16px;
             padding-top: 12px;
@@ -169,6 +270,7 @@
         }
 
         .info-actions .btn-detail,
+        .info-actions .btn-edit,
         .info-actions .btn-delete {
             flex: 1;
             border: none;
@@ -191,6 +293,14 @@
             text-decoration: none;
         }
 
+        /* "Registrar medição" ocupa a linha inteira; Editar e Apagar dividem a linha de baixo */
+        .info-actions .btn-detail { flex: 1 1 100%; }
+
+        .info-actions .btn-edit {
+            background: linear-gradient(145deg, #2a3d66 0%, #15213b 100%);
+            box-shadow: 0 4px 12px rgba(21, 33, 59, 0.3);
+        }
+
         .info-actions .btn-delete {
             background: linear-gradient(145deg, #ef4444 0%, #dc2626 100%);
             box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35);
@@ -204,16 +314,21 @@
 
         @media (max-width: 1200px) {
             .stats { grid-template-columns: repeat(2, minmax(170px, 1fr)); }
-            .filters { grid-template-columns: repeat(3, minmax(160px, 1fr)); align-items: stretch; }
-            .check { min-height: 40px; }
+            .filters { grid-template-columns: 1fr 1fr; align-items: stretch; }
+            .chips { grid-column: 1 / -1; }
         }
 
         @media (max-width: 680px) {
-            .stats { grid-template-columns: 1fr; }
+            .stats { grid-template-columns: 1fr 1fr; gap: 8px; }
+            .stat-card { min-height: 70px; padding: 10px 12px; }
+            .stat-card .stat-value { font-size: 1.5rem; }
+            .stat-card .stat-label { font-size: 0.8rem; }
+            .stat-card > i { display: none; }
             .filters { grid-template-columns: 1fr; }
             .info-card { position: static; width: calc(100% - 24px); margin: 12px; }
             .info-actions { flex-direction: column; }
             .info-actions .btn-detail,
+            .info-actions .btn-edit,
             .info-actions .btn-delete { width: 100%; }
         }
     </style>
@@ -225,28 +340,28 @@
         <div class="stat-card danger">
             <div>
                 <div class="stat-value" id="total-criticas">0</div>
-                <div class="stat-label">Areas Criticas</div>
+                <div class="stat-label">Áreas Críticas</div>
             </div>
             <i class="fa-solid fa-triangle-exclamation fa-xl"></i>
         </div>
         <div class="stat-card warning">
             <div>
                 <div class="stat-value" id="total-alerta">0</div>
-                <div class="stat-label">Areas em Alerta</div>
+                <div class="stat-label">Áreas em Alerta</div>
             </div>
             <i class="fa-solid fa-bell fa-xl"></i>
         </div>
         <div class="stat-card safe">
             <div>
                 <div class="stat-value" id="total-seguras">0</div>
-                <div class="stat-label">Areas Seguras</div>
+                <div class="stat-label">Áreas Seguras</div>
             </div>
             <i class="fa-solid fa-check fa-xl"></i>
         </div>
         <div class="stat-card info">
             <div>
                 <div class="stat-value" id="rain-level">-- mm</div>
-                <div class="stat-label">Nivel de Chuva</div>
+                <div class="stat-label">Nível de Chuva</div>
                 <small id="rain-updated" style="opacity:0.9; font-weight:600;">Atualizando...</small>
             </div>
             <i class="fa-solid fa-cloud-rain fa-xl" id="rain-icon"></i>
@@ -255,12 +370,16 @@
 
     <div class="panel">
         <div class="filters">
-            <label class="check"><input id="showCritical" type="checkbox"> Mostrar apenas areas criticas</label>
-            <label class="check"><input id="showAlerts" type="checkbox"> Mostrar areas em alerta</label>
+            <div class="chips" id="riskChips" role="group" aria-label="Filtrar por nível de risco">
+                <button type="button" class="chip active" data-risk="">Todas</button>
+                <button type="button" class="chip" data-risk="alto"><span class="dot" style="background:#ef4444"></span>Críticas</button>
+                <button type="button" class="chip" data-risk="medio"><span class="dot" style="background:#f59e0b"></span>Em alerta</button>
+                <button type="button" class="chip" data-risk="baixo"><span class="dot" style="background:#22c55e"></span>Seguras</button>
+            </div>
             <select class="form-field" id="bairroSelect">
                 <option value="">Filtrar por bairro</option>
             </select>
-            <input class="form-field" id="searchArea" type="text" placeholder="Buscar area...">
+            <input class="form-field" id="searchArea" type="text" placeholder="Buscar área...">
             <button class="btn-filter" id="applyFilter" type="button">Filtrar</button>
         </div>
     </div>
@@ -270,8 +389,8 @@
         <article class="info-card" id="infoCard" style="display:none;">
             <div class="info-head">
                 <div>
-                    <h3 class="info-title" id="infoTitle">Area de Risco</h3>
-                    <span class="info-badge badge-alto" id="infoBadge"><i class="fa-solid fa-location-dot"></i> Critico</span>
+                    <h3 class="info-title" id="infoTitle">Área de Risco</h3>
+                    <span class="info-badge badge-alto" id="infoBadge"><i class="fa-solid fa-location-dot"></i> Crítico</span>
                 </div>
                 <button class="btn btn-sm text-secondary" id="closeInfo" aria-label="Fechar">
                     <i class="fa-solid fa-xmark"></i>
@@ -281,137 +400,110 @@
             <div style="color:#75809a; font-size:0.88rem; margin:4px 0 12px;"><i class="fa-solid fa-city"></i> <span id="infoCityName">Parauapebas</span></div>
 
             <div class="info-section">
-                <h4>Ultimas Medicoes</h4>
-                <div class="meta-line"><i class="fa-regular fa-circle-dot alto"></i> Nivel de Risco: <strong id="infoNivel">---</strong></div>
-                <div class="meta-line"><i class="fa-regular fa-circle-dot medio"></i> Situacao: <strong id="infoSituacao">---</strong></div>
+                <h4>Nível de Água</h4>
+                <div class="meta-line"><i class="fa-regular fa-circle-dot alto"></i> Nível de risco da área: <strong id="infoNivel">---</strong></div>
+                <div class="ultima-medicao" id="infoUltima">Carregando medições...</div>
+                <div class="history-box" id="infoHistorico" hidden>
+                    <canvas id="historyChart" aria-label="Gráfico do nível de água ao longo do tempo"></canvas>
+                </div>
             </div>
 
             <div class="info-section" id="infoFotoSection" style="display:none;">
-                <h4>Foto da Area</h4>
-                <img id="infoFoto" src="" alt="Foto da area" style="max-width:100%; height:auto; border-radius:8px; margin-top:8px;">
+                <h4>Foto da Área</h4>
+                <img id="infoFoto" src="" alt="Foto da área" style="max-width:100%; height:auto; border-radius:8px; margin-top:8px;">
             </div>
 
             <div class="info-actions">
-                <a class="btn-detail" href="/monitoramento/"><i class="fa-solid fa-eye"></i> Registrar medicao</a>
-                {% if user.is_authenticated %}
-                <button class="btn-delete" id="deleteArea" type="button"><i class="fa-solid fa-trash"></i> Apagar area</button>
+                <a class="btn-detail" id="infoMedirLink" href="/monitoramento/"><i class="fa-solid fa-ruler-vertical"></i> Registrar medição</a>
+                {% if user.is_staff %}
+                <button class="btn-edit" id="editArea" type="button"><i class="fa-solid fa-pen"></i> Editar</button>
+                <button class="btn-delete" id="deleteArea" type="button"><i class="fa-solid fa-trash"></i> Apagar</button>
                 {% endif %}
             </div>
         </article>
     </div>
 </section>
+
+{% if user.is_staff %}
+<div class="confirmar-fundo" id="editModal" hidden>
+    <form class="confirmar-card editar-card" id="editForm" role="dialog" aria-modal="true" aria-labelledby="editTitulo">
+        <h3 id="editTitulo">Editar área de risco</h3>
+        <div class="campo">
+            <label for="editNome">Rua / Endereço</label>
+            <input type="text" id="editNome" required maxlength="100">
+        </div>
+        <div class="campo">
+            <label for="editBairro">Bairro</label>
+            <input type="text" id="editBairro" maxlength="100">
+        </div>
+        <div class="campo">
+            <label for="editNivel">Nível de risco</label>
+            <select id="editNivel">
+                <option value="alto">Alto</option>
+                <option value="medio">Médio</option>
+                <option value="baixo">Baixo</option>
+            </select>
+        </div>
+        <div class="campo">
+            <label for="editDescricao">Descrição</label>
+            <textarea id="editDescricao"></textarea>
+        </div>
+        <div class="form-erro" id="editErro"></div>
+        <div class="confirmar-acoes">
+            <button type="button" class="btn-cancelar" id="editCancelar">Cancelar</button>
+            <button type="submit" class="btn-main" id="editSalvar">Salvar</button>
+        </div>
+    </form>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="{% static 'leaflet/leaflet.js' %}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script>
-        const map = L.map('map', { 
-    zoomControl: true,
-    maxZoom: 19,           // limite global do mapa
-    minZoom: 3
-}).setView([{{ MAP_CENTER_LAT }}, {{ MAP_CENTER_LNG }}], {{ MAP_DEFAULT_ZOOM }});
-
-        // Camada base: IBGE (dados oficiais do Brasil) - maxZoom 18
-        const ibgeLayer = L.tileLayer('https://tiles.geo.ibge.gov.br/ibge/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.ibge.gov.br/" target="_blank">IBGE</a>',
-            maxZoom: 18,
+        const map = L.map('map', {
+            zoomControl: true,
+            maxZoom: 19,
             minZoom: 3
+        }).setView([{{ MAP_CENTER_LAT }}, {{ MAP_CENTER_LNG }}], {{ MAP_DEFAULT_ZOOM }});
+
+        // Camada padrão: ruas (Esri World Street Map), com nomes de ruas e bairros. Gratuita e sem chave de API.
+        const ruasLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+            attribution: '&copy; <a href="https://www.esri.com/" target="_blank">Esri</a> &mdash; Source: Esri, HERE, Garmin, OpenStreetMap contributors',
+            maxZoom: 19
         });
 
-        // Camada alternativa: Satelite (Esri World Imagery) - maxZoom 19
+        // Camada alternativa: imagem de satélite (Esri World Imagery)
         const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
             attribution: '&copy; <a href="https://www.esri.com/" target="_blank">Esri</a> &mdash; Source: Esri, Maxar, Earthstar Geographics',
-            maxZoom: 19,
-            minZoom: 3
+            maxZoom: 19
         });
 
-        // Camada alternativa: OpenStreetMap (CartoDB Light) - maxZoom 19
-        const osmLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/" target="_blank">OpenStreetMap</a> &copy; <a href="https://carto.com/" target="_blank">CARTO</a>',
-            subdomains: 'abcd',
-            maxZoom: 19,
-            minZoom: 3
-        });
+        ruasLayer.addTo(map);
+        L.control.layers({ 'Ruas': ruasLayer, 'Satélite': satelliteLayer }, null, { position: 'topleft', collapsed: false }).addTo(map);
 
-        // Adiciona OpenStreetMap (CartoDB Light) como padrao - com rotulos de cidades/estados
-        osmLayer.addTo(map);
-
-        // Controle de camadas (canto superior direito)
-        const baseMaps = {
-            'Ruas (nomes visiveis)': osmLayer,
-            'IBGE (Oficial, sem rotulos)': ibgeLayer,
-            'Satelite (zoom ate 19)': satelliteLayer
+        // Legenda com o significado das cores dos marcadores
+        const legend = L.control({ position: 'bottomleft' });
+        legend.onAdd = function () {
+            const div = L.DomUtil.create('div', 'map-legend');
+            div.innerHTML = `
+                <strong>Nível de risco</strong>
+                <div><span class="legend-dot" style="background:#ef4444"></span>Crítico</div>
+                <div><span class="legend-dot" style="background:#f59e0b"></span>Alerta</div>
+                <div><span class="legend-dot" style="background:#22c55e"></span>Seguro</div>`;
+            return div;
         };
-        L.control.layers(baseMaps, null, { position: 'topright', collapsed: false }).addTo(map);
+        legend.addTo(map);
 
-        // Forca recalculo do tamanho do mapa apos inicializacao
+        // Garante que o mapa ocupe o tamanho certo depois que a página monta
         setTimeout(() => map.invalidateSize(), 100);
-
-        // Debug: verifica se o mapa foi criado corretamente
-        setTimeout(() => {
-            const size = map.getSize();
-            console.log('Map size:', size.x, 'x', size.y);
-            console.log('Map container:', document.getElementById('map').offsetWidth, 'x', document.getElementById('map').offsetHeight);
-        }, 200);
-
-        // Fallback automatico: se passar do zoom 18 no IBGE, avisa o usuario
-        map.on('zoomend', function() {
-            const currentZoom = map.getZoom();
-            const isIbgeActive = map.hasLayer(ibgeLayer);
-            
-            if (isIbgeActive && currentZoom > 18) {
-                // Remove aviso anterior se existir
-                if (window._zoomWarning) {
-                    map.removeControl(window._zoomWarning);
-                }
-                // Mostra aviso temporario
-                window._zoomWarning = L.control({ position: 'bottomleft' });
-                window._zoomWarning.onAdd = function() {
-                    const div = L.DomUtil.create('div', 'alert alert-warning p-2 m-2');
-                    div.style.background = 'rgba(255,243,224,0.95)';
-                    div.style.border = '1px solid #f59e0b';
-                    div.style.borderRadius = '8px';
-                    div.style.fontSize = '0.85rem';
-                    div.style.maxWidth = '280px';
-                    div.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-1"></i>IBGE so vai ate zoom 18. <b>Troque para Satelite ou OSM</b> no painel a direita para aproximar mais.';
-                    return div;
-                };
-                window._zoomWarning.addTo(map);
-                
-                // Remove apos 8 segundos
-                setTimeout(() => {
-                    if (window._zoomWarning) {
-                        map.removeControl(window._zoomWarning);
-                        window._zoomWarning = null;
-                    }
-                }, 8000);
-            } else if (window._zoomWarning && currentZoom <= 18) {
-                map.removeControl(window._zoomWarning);
-                window._zoomWarning = null;
-            }
-        });
-
-        // Ajusta limite de zoom conforme camada ativa
-        map.on('baselayerchange', function(e) {
-            if (e.layer === ibgeLayer) {
-                map.setMaxZoom(18);
-                if (map.getZoom() > 18) map.setZoom(18);
-            } else {
-                map.setMaxZoom(19);
-            }
-            // remove aviso ao trocar de camada
-            if (window._zoomWarning) {
-                map.removeControl(window._zoomWarning);
-                window._zoomWarning = null;
-            }
-        });
 
         const infoCard = document.getElementById('infoCard');
         const infoTitle = document.getElementById('infoTitle');
         const infoBadge = document.getElementById('infoBadge');
         const infoCoords = document.getElementById('infoCoords');
         const infoNivel = document.getElementById('infoNivel');
-        const infoSituacao = document.getElementById('infoSituacao');
         const rainLevel = document.getElementById('rain-level');
         const rainUpdated = document.getElementById('rain-updated');
         const rainIcon = document.getElementById('rain-icon');
@@ -424,15 +516,9 @@
         const riskConfig = {
             baixo: { color: '#22c55e', label: 'Seguro', badge: 'badge-baixo' },
             medio: { color: '#f59e0b', label: 'Alerta', badge: 'badge-medio' },
-            alto: { color: '#ef4444', label: 'Critico', badge: 'badge-alto' },
-            critico: { color: '#b91c1c', label: 'Critico', badge: 'badge-alto' }
+            alto: { color: '#ef4444', label: 'Crítico', badge: 'badge-alto' },
+            critico: { color: '#b91c1c', label: 'Crítico', badge: 'badge-alto' }
         };
-
-        function parseApiList(payload) {
-            if (Array.isArray(payload)) return payload;
-            if (payload && Array.isArray(payload.results)) return payload.results;
-            return [];
-        }
 
         function normalizeRisk(value) {
             const v = (value || '').toLowerCase().trim();
@@ -472,12 +558,12 @@
                 const coordLng = Number(lng).toFixed(4);
                 infoCoords.textContent = `${coordLat}, ${coordLng}`;
             } else {
-                infoCoords.textContent = 'Localizacao nao informada';
+                infoCoords.textContent = 'Localização não informada';
             }
 
-            infoTitle.textContent = area.nome || 'Area sem nome';
-            infoNivel.textContent = area.nivel_risco ? `${area.nivel_risco}`.charAt(0).toUpperCase() + `${area.nivel_risco}`.slice(1) : '---';
-            infoSituacao.textContent = config.label;
+            infoTitle.textContent = area.nome || 'Área sem nome';
+            infoNivel.textContent = NIVEL_RISCO_LABEL[risk] || '---';
+            document.getElementById('infoMedirLink').href = `/monitoramento/?area=${encodeURIComponent(area.id)}`;
 
             infoBadge.className = `info-badge ${config.badge}`;
             infoBadge.innerHTML = `<i class="fa-solid fa-location-dot"></i> ${config.label}`;
@@ -495,6 +581,75 @@
             if (cityName) cityName.textContent = area.cidade || 'Parauapebas';
 
             infoCard.style.display = 'block';
+            loadHistorico(area);
+        }
+
+        const NIVEL_RISCO_LABEL = { baixo: 'Baixo', medio: 'Médio', alto: 'Alto' };
+        const STATUS_LABEL = { critico: 'Crítico', alerta: 'Alerta', normal: 'Normal' };
+        let historyChart = null;
+
+        // Gráfico com as últimas 20 medições da área, com as linhas de Alerta (50 cm) e Crítico (80 cm)
+        async function loadHistorico(area) {
+            const ultima = document.getElementById('infoUltima');
+            const box = document.getElementById('infoHistorico');
+            ultima.textContent = 'Carregando medições...';
+            box.hidden = true;
+            try {
+                const response = await fetch(`/api/monitoramento/?area=${encodeURIComponent(area.id)}&page_size=20`, { credentials: 'same-origin' });
+                if (!response.ok) throw new Error('Falha ao carregar medições.');
+                const registros = parseApiList(await response.json());
+                if (currentArea !== area) return; // o usuário já clicou em outra área
+
+                if (!registros.length) {
+                    ultima.textContent = 'Nenhuma medição registrada para esta área.';
+                    return;
+                }
+                const u = registros[0];
+                ultima.innerHTML = `Última medição: <strong>${fmtNivel(u.nivel_agua)}</strong> (${esc(STATUS_LABEL[u.status] || u.status)}) em ${fmtDate(u.data_hora)}`;
+
+                const pontos = registros.slice().reverse();
+                box.hidden = false;
+                if (historyChart) historyChart.destroy();
+                historyChart = new Chart(document.getElementById('historyChart'), {
+                    type: 'line',
+                    data: {
+                        labels: pontos.map((p) => new Date(p.data_hora).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })),
+                        datasets: [
+                            {
+                                label: 'Nível de água',
+                                data: pontos.map((p) => Number(p.nivel_agua)),
+                                borderColor: '#38bdf8',
+                                backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                                fill: true,
+                                tension: 0.3,
+                                pointRadius: 3
+                            },
+                            { label: 'Crítico (80 cm)', data: pontos.map(() => 80), borderColor: '#ef4444', borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0 },
+                            { label: 'Alerta (50 cm)', data: pontos.map(() => 50), borderColor: '#f59e0b', borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0 }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: (ctx) => ctx.datasetIndex === 0 ? `Nível: ${fmtNivel(ctx.parsed.y)}` : ctx.dataset.label
+                                }
+                            }
+                        },
+                        scales: {
+                            y: { beginAtZero: true, suggestedMax: 100, ticks: { callback: (v) => `${v} cm`, font: { size: 10 } } },
+                            x: { ticks: { maxTicksLimit: 6, font: { size: 10 } } }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error(error);
+                if (currentArea === area) ultima.textContent = 'Não foi possível carregar as medições.';
+            }
         }
 
 function renderAreas(areas) {
@@ -503,6 +658,7 @@ function renderAreas(areas) {
             if (!areas.length) return;
 
             const bounds = [];
+            let firstMappedArea = null;
             areas.forEach((area) => {
                 const risk = normalizeRisk(area.nivel_risco);
                 const config = riskConfig[risk] || riskConfig.medio;
@@ -521,6 +677,7 @@ function renderAreas(areas) {
 
                 if (Number.isNaN(lat) || Number.isNaN(lng)) return;
                 bounds.push([lat, lng]);
+                if (!firstMappedArea) firstMappedArea = area;
 
                 const marker = L.circleMarker([lat, lng], {
                     radius: 8,
@@ -530,17 +687,14 @@ function renderAreas(areas) {
                     weight: 2
                 }).addTo(map);
 
-                const nomeSeguro = (area.nome || 'Area sem nome').replace(/[&<>"']/g, function(m) {
-    return {'&':'&','<':'<','>':'>','"':'"',"'":"&#39;"}[m];
-});
-                marker.bindPopup(`<strong>${nomeSeguro}</strong><br>Nivel: ${config.label}`);
+                marker.bindPopup(`<strong>${esc(area.nome || 'Área sem nome')}</strong><br>Nível: ${config.label}`);
                 marker.on('click', () => updateDetailCard(area));
                 markers.push(marker);
             });
 
             if (bounds.length) {
                 map.fitBounds(bounds, { padding: [35, 35], maxZoom: 14 });
-                updateDetailCard(areas[0]);
+                updateDetailCard(firstMappedArea);
             }
         }
 
@@ -559,21 +713,20 @@ function renderAreas(areas) {
             });
         }
 
+        let riskFilter = '';
+
         function applyFilters() {
-            const onlyCritical = document.getElementById('showCritical').checked;
-            const onlyAlerts = document.getElementById('showAlerts').checked;
             const bairro = document.getElementById('bairroSelect').value;
             const term = searchArea.value.trim().toLowerCase();
 
             const filtered = allAreas.filter((area) => {
                 const risk = normalizeRisk(area.nivel_risco);
-                const byRisk = !onlyCritical || risk === 'alto';
-                const byAlert = !onlyAlerts || risk === 'medio';
+                const byRisk = !riskFilter || risk === riskFilter;
                 const byBairro = !bairro || (area.bairro || '').toLowerCase() === bairro.toLowerCase();
                 const byTerm = !term || (area.nome || '').toLowerCase().includes(term) ||
                     (area.bairro || '').toLowerCase().includes(term) ||
                     (area.cidade || '').toLowerCase().includes(term);
-                return byRisk && byAlert && byBairro && byTerm;
+                return byRisk && byBairro && byTerm;
             });
             renderAreas(filtered);
         }
@@ -604,7 +757,7 @@ function renderAreas(areas) {
                 const rainMm = Number(data?.current?.rain ?? 0);
                 const safeRain = Number.isFinite(rainMm) ? rainMm : 0;
                 lastRain = safeRain;
-                rainLevel.textContent = `${safeRain.toFixed(1)} mm`;
+                rainLevel.textContent = `${safeRain.toFixed(1).replace('.', ',')} mm`;
                 rainUpdated.textContent = `Atualizado ${formatUpdatedAt()}`;
                 setRainVisual(safeRain);
             } catch (error) {
@@ -615,34 +768,30 @@ function renderAreas(areas) {
                     rainUpdated.textContent = 'Sem dados no momento';
                     rainIcon.className = 'fa-solid fa-cloud fa-xl';
                 } else {
-                    rainUpdated.textContent = `Ultima atualizacao ${formatUpdatedAt()} (sem internet)`;
+                    rainUpdated.textContent = `Última atualização ${formatUpdatedAt()} (sem internet)`;
                 }
             }
         }
 
         async function loadAreas() {
             try {
-                const response = await fetch('/api/areas/');
-                if (!response.ok) throw new Error('Falha ao consultar a API de areas.');
-                allAreas = parseApiList(await response.json());
+                allAreas = await fetchAll('/api/areas/');
                 populateBairroFilter(allAreas);
                 renderAreas(allAreas);
             } catch (error) {
                 console.error(error);
-                alert('Nao foi possivel carregar as areas no mapa.');
+                avisar('Não foi possível carregar as áreas no mapa.');
             }
         }
 
-        function getCookie(name) {
-            const cookieValue = document.cookie
-                .split('; ')
-                .find((row) => row.startsWith(name + '='));
-            return cookieValue ? decodeURIComponent(cookieValue.split('=')[1]) : '';
-        }
-
         document.getElementById('applyFilter').addEventListener('click', applyFilters);
-        document.getElementById('showCritical').addEventListener('change', applyFilters);
-        document.getElementById('showAlerts').addEventListener('change', applyFilters);
+        document.getElementById('riskChips').addEventListener('click', (event) => {
+            const chip = event.target.closest('.chip');
+            if (!chip) return;
+            document.querySelectorAll('#riskChips .chip').forEach((c) => c.classList.toggle('active', c === chip));
+            riskFilter = chip.dataset.risk;
+            applyFilters();
+        });
         document.getElementById('bairroSelect').addEventListener('change', applyFilters);
         searchArea.addEventListener('keydown', (event) => {
             if (event.key === 'Enter') applyFilters();
@@ -655,30 +804,86 @@ function renderAreas(areas) {
         const deleteAreaBtn = document.getElementById('deleteArea');
         if (deleteAreaBtn) deleteAreaBtn.addEventListener('click', async () => {
             if (!currentArea || !currentArea.id) return;
-            if (!confirm('Tem certeza que deseja apagar esta area de risco?')) return;
+            const ok = await confirmar(`A área "${currentArea.nome}" e todas as suas medições e alertas serão apagados. Esta ação não pode ser desfeita.`, { titulo: 'Apagar área de risco?', botao: 'Apagar' });
+            if (!ok) return;
             try {
                 const response = await fetch(`/api/areas/${currentArea.id}/`, {
                     method: 'DELETE',
                     credentials: 'same-origin',
                     headers: { 'X-CSRFToken': getCookie('csrftoken') }
                 });
-                if (!response.ok) throw new Error('Falha ao apagar area.');
+                if (!response.ok) throw new Error('Falha ao apagar área.');
                 infoCard.style.display = 'none';
                 allAreas = allAreas.filter((a) => a.id !== currentArea.id);
-                renderAreas(allAreas);
+                currentArea = null;
+                applyFilters();
+                avisar('Área apagada.', 'sucesso');
             } catch (error) {
                 console.error(error);
-                alert('Nao foi possivel apagar a area.');
+                avisar('Não foi possível apagar a área.');
             }
         });
 
-        document.addEventListener('DOMContentLoaded', () => {
-            loadAreas();
+        // Edição de área (somente administradores)
+        const editModal = document.getElementById('editModal');
+        if (editModal) {
+            const editForm = document.getElementById('editForm');
+            const editErro = document.getElementById('editErro');
+            const editSalvar = document.getElementById('editSalvar');
+            const fecharEdicao = () => { editModal.hidden = true; };
+
+            document.getElementById('editArea').addEventListener('click', () => {
+                if (!currentArea) return;
+                document.getElementById('editNome').value = currentArea.nome || '';
+                document.getElementById('editBairro').value = currentArea.bairro || '';
+                document.getElementById('editNivel').value = currentArea.nivel_risco || 'baixo';
+                document.getElementById('editDescricao').value = currentArea.descricao || '';
+                editErro.textContent = '';
+                editModal.hidden = false;
+                document.getElementById('editNome').focus();
+            });
+            document.getElementById('editCancelar').addEventListener('click', fecharEdicao);
+            editModal.addEventListener('click', (event) => { if (event.target === editModal) fecharEdicao(); });
+            document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !editModal.hidden) fecharEdicao(); });
+
+            editForm.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                editErro.textContent = '';
+                editSalvar.disabled = true;
+                try {
+                    const response = await fetch(`/api/areas/${currentArea.id}/`, {
+                        method: 'PATCH',
+                        credentials: 'same-origin',
+                        headers: { 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            nome: document.getElementById('editNome').value.trim(),
+                            bairro: document.getElementById('editBairro').value.trim(),
+                            nivel_risco: document.getElementById('editNivel').value,
+                            descricao: document.getElementById('editDescricao').value.trim()
+                        })
+                    });
+                    const body = await response.json().catch(() => ({}));
+                    if (!response.ok) throw new Error(Object.values(body).flat().join(' ') || 'Não foi possível salvar.');
+                    allAreas = allAreas.map((a) => (a.id === body.id ? body : a));
+                    applyFilters();
+                    updateDetailCard(body);
+                    fecharEdicao();
+                    avisar('Área atualizada.', 'sucesso');
+                } catch (error) {
+                    editErro.textContent = error.message;
+                } finally {
+                    editSalvar.disabled = false;
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
             loadWeatherInRealtime();
             setInterval(loadWeatherInRealtime, 60 * 1000);
+            await loadAreas();
 
-            const params = new URLSearchParams(window.location.search);
-            const q = params.get('q');
+            // Link direto com busca: /?q=nome
+            const q = new URLSearchParams(window.location.search).get('q');
             if (q) {
                 searchArea.value = q;
                 applyFilters();

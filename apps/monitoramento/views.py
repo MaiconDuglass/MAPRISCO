@@ -1,16 +1,16 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 from rest_framework.filters import SearchFilter, OrderingFilter
 from .models import AreaRisco, RegistroMonitoramento, Alerta
+from .permissions import CidadaoCadastraAdminGerencia, SomenteAdminAltera
 from .serializers import AreaRiscoSerializer, RegistroMonitoramentoSerializer, AlertaSerializer
 
 
 class AreaRiscoViewSet(viewsets.ModelViewSet):
     queryset = AreaRisco.objects.all()
     serializer_class = AreaRiscoSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [CidadaoCadastraAdminGerencia]
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ['nome', 'bairro', 'cidade', 'descricao', 'nivel_risco']
     ordering_fields = ['nome', 'bairro', 'cidade', 'nivel_risco', 'data_criacao']
@@ -56,17 +56,25 @@ class AreaRiscoViewSet(viewsets.ModelViewSet):
 class RegistroMonitoramentoViewSet(viewsets.ModelViewSet):
     queryset = RegistroMonitoramento.objects.select_related('area').all()
     serializer_class = RegistroMonitoramentoSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [CidadaoCadastraAdminGerencia]
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ['area__nome', 'area__bairro', 'status']
     ordering_fields = ['nivel_agua', 'data_hora', 'status']
     ordering = ['-data_hora']
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        # ?area=<id>: medições de uma área (histórico no mapa e filtro na tela de Monitoramento)
+        area = self.request.query_params.get('area')
+        if area and area.isdigit():
+            queryset = queryset.filter(area_id=int(area))
+        return queryset
+
 
 class AlertaViewSet(viewsets.ModelViewSet):
     queryset = Alerta.objects.select_related('area').all()
     serializer_class = AlertaSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [SomenteAdminAltera]
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ['area__nome', 'mensagem', 'nivel']
     ordering_fields = ['nivel', 'data_hora', 'resolvido']

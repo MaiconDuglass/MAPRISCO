@@ -14,7 +14,7 @@ O **Sistema MapRisco** é uma aplicação web desenvolvida em Django para monito
 ## 🏗️ Arquitetura do Sistema
 
 ### Tecnologias Utilizadas
-- **Backend**: Django 4.2 (Python)
+- **Backend**: Django 5.2 LTS (Python)
 - **Banco de Dados**: PostgreSQL
 - **API**: Django REST Framework
 - **Autenticação**: JWT (JSON Web Tokens)
@@ -34,25 +34,31 @@ MAPRISCO/
 │   ├── wsgi.py              # Configuração WSGI
 │   └── asgi.py              # Configuração ASGI
 ├── apps/                     # Aplicações Django
-│   ├── core/                 # App principal (interface web)
-│   │   ├── models.py        # Modelos básicos
-│   │   ├── views.py         # Views web e API
-│   │   ├── urls.py          # URLs do app
-│   │   ├── serializers.py   # Serializers para API
-│   │   └── admin.py         # Configuração admin
-│   └── monitoramento/        # App de monitoramento
-│       ├── models.py        # Modelos de negócio
-│       ├── views.py         # ViewSets da API
-│       ├── urls.py          # URLs da API
-│       ├── serializers.py   # Serializers da API
-│       ├── signals.py       # Lógica automática
-│       ├── admin.py         # Admin customizado
+│   ├── core/                 # Interface web e autenticação
+│   │   ├── views.py         # Telas (mapa, dashboard, alertas, login...)
+│   │   ├── forms.py         # Formulário de cadastro de usuário
+│   │   ├── urls.py          # Rotas das telas
+│   │   └── tests.py         # Testes das telas e do login
+│   └── monitoramento/        # Regras de negócio e API
+│       ├── models.py        # Áreas, medições e alertas (lógica automática no save)
+│       ├── views.py         # ViewSets da API REST
+│       ├── serializers.py   # Serializers da API (com geocodificação)
+│       ├── permissions.py   # Permissões por perfil (cidadão x administrador)
+│       ├── pagination.py    # Paginação da API (?page_size=)
+│       ├── geocoding.py     # Busca de coordenadas pelo endereço (Nominatim)
+│       ├── admin.py         # Painel administrativo
+│       ├── management/      # Comandos (populate_parauapebas, geocodificar_areas)
 │       └── migrations/      # Migrações do banco
+├── static/                   # CSS, JS, Leaflet e logo
+│   └── js/comum.js          # Funções JavaScript compartilhadas pelas telas
 └── templates/                # Templates HTML
-    ├── index.html           # Página do mapa
-    ├── dashboard.html       # Dashboard estatístico
-    ├── login.html           # Autenticação
-    └── register.html        # Registro de usuários
+    ├── base.html            # Layout comum (barra lateral, barra superior)
+    ├── index.html           # Mapa
+    ├── dashboard.html       # Dashboard e cadastro de área
+    ├── alertas.html         # Central de alertas
+    ├── monitoramento.html   # Medições de nível de água
+    ├── login.html           # Login
+    └── register.html        # Cadastro de usuário
 ```
 
 ## 🚀 Guia de Instalação e Execução
@@ -131,8 +137,7 @@ DEFAULT_FROM_EMAIL=no-reply@maprisco.local
 
 ### Passo 6: Migrações e Superusuário
 ```bash
-# Criar e aplicar migrações
-python manage.py makemigrations
+# Aplicar as migrações (já estão no repositório)
 python manage.py migrate
 
 # Criar superusuário
@@ -198,15 +203,15 @@ curl -H "Authorization: Bearer <access_token>" \
 | Endpoint | Método | Descrição |
 |----------|--------|-----------|
 | `/api/areas/` | GET/POST | Listar/Criar áreas |
-| `/api/areas/<id>/` | GET/PUT/DELETE | Detalhar/Atualizar/Deletar área |
+| `/api/areas/<id>/` | GET/PUT/DELETE | Detalhar/Atualizar/Deletar área (alterar e deletar: só administrador) |
 | `/api/monitoramento/` | GET/POST | Registros de monitoramento |
 | `/api/alertas/` | GET/POST | Sistema de alertas |
 
 ### ⚡ Lógica Automática
 - **Detecção crítica**: Quando nível de água > 80
 - **Atualização automática** do status para "crítico"
-- **Geração de alertas** de alta prioridade
-- **Processamento em tempo real** via Django signals
+- **Geração de alertas** críticos, com aviso por e-mail aos administradores
+- **Processamento em tempo real** no `save()` do modelo `RegistroMonitoramento`
 
 ## 🧪 Testes do Sistema
 
@@ -285,11 +290,13 @@ curl -H "Authorization: Bearer <access_token>" \
 
 ## 🔧 Dependências do Projeto
 
+As versões exatas estão no `requirements.txt`. Principais:
+
 ```
-Django==4.2
+Django==5.2.17
+djangorestframework==3.16.1
+djangorestframework-simplejwt==5.5.1
 psycopg2-binary==2.9.7
-djangorestframework==3.14.0
-djangorestframework-simplejwt==5.2.2
 ```
 
 ## 📖 Considerações para TCC
@@ -347,7 +354,7 @@ O sistema está **100% funcional** e pronto para demonstração em banca de TCC.
 4. Instale dependências: `pip install -r requirements.txt`
 5. Configure o banco PostgreSQL: crie um banco chamado 'maprisco_db', usuário e senha.
 6. Atualize settings.py com suas credenciais do banco.
-7. Execute migrações: `python manage.py makemigrations` e `python manage.py migrate`
+7. Execute as migrações: `python manage.py migrate`
 8. Rode o servidor: `python manage.py runserver`
 
 Acesse http://127.0.0.1:8000/ para ver o frontend com mapa.
@@ -461,12 +468,13 @@ Use Content-Type: application/json nos headers.
 
 ## Lógica Automática
 
-Quando um Registro de Monitoramento é criado ou atualizado com nível de água > 80:
+Quando um Registro de Monitoramento é criado ou atualizado:
 
-- O status é automaticamente definido como "crítico"
-- Um alerta é criado automaticamente com nível "alto"
+- O status é calculado automaticamente: a partir de 80 cm = "crítico", a partir de 50 cm = "alerta", abaixo disso = "normal".
+- Ao entrar no estado crítico, um alerta com nível "crítico" é criado automaticamente (uma única vez por escalada).
+- Os administradores (`is_staff`) com e-mail cadastrado recebem um aviso por e-mail.
 
-Isso é implementado usando Django signals (post_save) no app monitoramento.
+Isso é implementado no método `save()` do modelo `RegistroMonitoramento` (`apps/monitoramento/models.py`), dentro de uma transação.
 
 ## Estrutura
 
@@ -477,25 +485,45 @@ Isso é implementado usando Django signals (post_save) no app monitoramento.
 
 ### Páginas Web
 - `/alertas/`: Central de alertas com busca, filtros por nível/status e ação "marcar como resolvido".
-- `/monitoramento/`: Cadastro de medições de nível de água (classificação automática) e histórico recente.
+- `/monitoramento/`: Cadastro de medições de nível de água (classificação automática) e histórico completo, com paginação e filtro por área.
 - `/admin/`: Painel de administração do Django.
-- Template base reutilizável (`templates/base.html`) com sidebar e topbar compartilhadas e busca funcional nas páginas.
+- Template base reutilizável (`templates/base.html`) com barra lateral, barra superior (alertas abertos e menu do usuário) e menu ☰ no celular.
 
 ### API
-- Paginação (`?page=`), busca (`?search=`) e ordenação (`?ordering=`) habilitadas nos três endpoints.
+- Paginação (`?page=` e `?page_size=`, até 1000), busca (`?search=`) e ordenação (`?ordering=`) nos três endpoints.
+- Filtro de medições por área: `GET /api/monitoramento/?area=<id>`.
 - Endpoint `POST /api/alertas/<id>/resolver/` para resolver alertas.
 - Throttling (limite de requisições) e CORS configurados.
-- JWT com tempo de expiração limitado (30 min de acesso, 7 dias de refresh).
-- Permissões consistentes (leitura pública, escrita autenticada).
+- JWT com tempo de expiração limitado (30 min de acesso, 7 dias de refresh); refresh tokens antigos são invalidados após a rotação (`token_blacklist`).
+- Permissões por perfil (`apps/monitoramento/permissions.py`):
+
+| Ação | Visitante | Usuário (cidadão) | Administrador (`is_staff`) |
+|------|-----------|-------------------|----------------------------|
+| Ver mapa, áreas, alertas e registros (API) | ✅ | ✅ | ✅ |
+| Acessar Dashboard, Alertas e Monitoramento | ❌ (vai para o login) | ✅ | ✅ |
+| Cadastrar área / registrar medição | ❌ | ✅ | ✅ |
+| Alterar ou apagar área / medição | ❌ | ❌ | ✅ |
+| Resolver alertas | ❌ | ❌ | ✅ |
+
+Para criar um administrador: `python manage.py createsuperuser`.
+
+### Mapa
+- Leaflet 1.9.4 servido localmente (`static/leaflet/`), sem depender de CDN.
+- Camadas: Ruas (Esri World Street Map) e Satélite (Esri), com legenda de cores por nível de risco.
+- No cadastro de área é possível clicar no mapa para marcar o local exato; sem marcação, a localização é obtida pelo endereço (geocodificação).
+- Ao clicar numa área, o cartão mostra a última medição e um gráfico do nível de água ao longo do tempo, com as linhas de Alerta (50 cm) e Crítico (80 cm).
+- Administradores podem editar e apagar áreas direto pelo mapa.
 
 ### Lógica de Negócio
 - Classificação automática de status: nível ≥ 80 cm = crítico, ≥ 50 cm = alerta, senão normal.
-- Geração de alerta (nível alto) apenas na transição para o estado crítico, evitando duplicidade.
+- Geração de alerta (nível crítico) apenas na transição para o estado crítico, evitando duplicidade.
+- Aviso por e-mail aos administradores quando um alerta crítico é gerado.
 - Toda a lógica foi movida para `RegistroMonitoramento.save()` com `transaction.atomic`.
 - `populate_parauapebas` não apaga dados existentes (usa `get_or_create`).
 
 ### Qualidade
-- Testes automatizados em `apps/core/tests.py` e `apps/monitoramento/tests.py`.
+- Testes automatizados em `apps/core/tests.py` e `apps/monitoramento/tests.py` (`python manage.py test`).
+- Login e cadastro não diferenciam maiúsculas/minúsculas no e-mail.
 - Logging configurado via variável `DJANGO_LOG_LEVEL`.
 - Imagem enviada agora é validada (`ImageField` + limite de 5 MB).
 - `ALLOWED_HOSTS`, CORS e demais configurações leitura do `.env`.

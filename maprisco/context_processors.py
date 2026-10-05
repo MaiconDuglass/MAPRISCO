@@ -11,3 +11,17 @@ def map_settings(request):
         'MAP_CENTER_LNG': f'{lng:.6f}'.rstrip('0').rstrip('.'),
         'MAP_DEFAULT_ZOOM': getattr(settings, 'MAP_DEFAULT_ZOOM', 12),
     }
+
+def navbar(request):
+    """Dados da barra superior: primeiro nome do usuário e total de alertas abertos."""
+    from apps.monitoramento.models import Alerta
+
+    user = getattr(request, 'user', None)
+    first_name = ''
+    if user is not None and user.is_authenticated:
+        nome = (user.first_name or user.username).strip()
+        first_name = nome.split()[0].title() if nome else user.username
+    return {
+        'user_first_name': first_name,
+        'open_alerts_count': Alerta.objects.filter(resolvido=False).count(),
+    }

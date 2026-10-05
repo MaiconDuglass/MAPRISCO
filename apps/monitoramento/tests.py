@@ -39,11 +39,32 @@ class RegistroMonitoramentoTests(TestCase):
         registro = RegistroMonitoramento.objects.create(area=self.area, nivel_agua=20)
         self.assertEqual(registro.status, 'normal')
 
-    def test_critico_creates_high_priority_alert(self):
+    def test_critico_creates_critical_alert(self):
         RegistroMonitoramento.objects.create(area=self.area, nivel_agua=90)
         alerts = Alerta.objects.filter(area=self.area)
         self.assertEqual(alerts.count(), 1)
-        self.assertEqual(alerts.first().nivel, 'alto')
+        self.assertEqual(alerts.first().nivel, 'critico')
+
+    def test_alert_message_uses_brazilian_decimal(self):
+        RegistroMonitoramento.objects.create(area=self.area, nivel_agua=85.5)
+        self.assertIn('85,50 cm', Alerta.objects.get(area=self.area).mensagem)
+
+    def test_critical_alert_emails_staff(self):
+        from django.core import mail
+        User.objects.create_user(username='defesa', password='x', email='defesa@exemplo.com', is_staff=True)
+        User.objects.create_user(username='cidadao', password='x', email='cidadao@exemplo.com')
+        with self.captureOnCommitCallbacks(execute=True):
+            RegistroMonitoramento.objects.create(area=self.area, nivel_agua=90)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ['defesa@exemplo.com'])
+        self.assertIn('Alerta crítico', mail.outbox[0].subject)
+
+    def test_no_email_for_non_critical_level(self):
+        from django.core import mail
+        User.objects.create_user(username='defesa', password='x', email='defesa@exemplo.com', is_staff=True)
+        with self.captureOnCommitCallbacks(execute=True):
+            RegistroMonitoramento.objects.create(area=self.area, nivel_agua=60)
+        self.assertEqual(len(mail.outbox), 0)
 
     def test_no_duplicate_alert_within_same_escalation(self):
         RegistroMonitoramento.objects.create(area=self.area, nivel_agua=82)
@@ -97,11 +118,47 @@ class ApiTests(TestCase):
         self.assertEqual(response.status_code, 201)
 
     def test_resolver_action_marks_alert_as_resolved(self):
-        self.client.force_authenticate(user=self.user)
+        admin = User.objects.create_user(username='admin', password='senha123', is_staff=True)
+        self.client.force_authenticate(user=admin)
         response = self.client.post(reverse('alerta-resolver', kwargs={'pk': self.alerta.pk}))
         self.assertEqual(response.status_code, 200)
         self.alerta.refresh_from_db()
         self.assertTrue(self.alerta.resolvido)
+
+    def test_registros_can_be_filtered_by_area(self):
+        outra = AreaRisco.objects.create(nome='Outra área', bairro='Centro')
+        RegistroMonitoramento.objects.create(area=self.area, nivel_agua=10)
+        RegistroMonitoramento.objects.create(area=outra, nivel_agua=20)
+        response = self.client.get('/api/monitoramento/', {'area': self.area.pk})
+        self.assertEqual(response.data['count'], 1)
+        self.assertEqual(response.data['results'][0]['area'], self.area.pk)
+
+    def test_page_size_can_be_requested(self):
+        for i in range(5):
+            RegistroMonitoramento.objects.create(area=self.area, nivel_agua=i)
+        response = self.client.get('/api/monitoramento/', {'page_size': 2})
+        self.assertEqual(len(response.data['results']), 2)
+        self.assertEqual(response.data['count'], 5)
+
+    def test_common_user_cannot_resolve_alert(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(reverse('alerta-resolver', kwargs={'pk': self.alerta.pk}))
+        self.assertEqual(response.status_code, 403)
+        self.alerta.refresh_from_db()
+        self.assertFalse(self.alerta.resolvido)
+
+    def test_common_user_cannot_delete_area(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.delete(reverse('arearisco-detail', kwargs={'pk': self.area.pk}))
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(AreaRisco.objects.filter(pk=self.area.pk).exists())
+
+    def test_admin_can_delete_area(self):
+        admin = User.objects.create_user(username='admin', password='senha123', is_staff=True)
+        self.client.force_authenticate(user=admin)
+        response = self.client.delete(reverse('arearisco-detail', kwargs={'pk': self.area.pk}))
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(AreaRisco.objects.filter(pk=self.area.pk).exists())
 
     def test_registro_creates_alert_via_api(self):
         self.client.force_authenticate(user=self.user)
@@ -110,7 +167,7 @@ class ApiTests(TestCase):
             'nivel_agua': 88,
         })
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(Alerta.objects.filter(area=self.area, nivel='alto').count(), 1)
+        self.assertEqual(Alerta.objects.filter(area=self.area, nivel='critico').count(), 1)
 
 
 # =============================================================================
@@ -122,7 +179,8 @@ class GeocodingTests(TestCase):
 
     def setUp(self):
         self.client = APIClient()
-        self.user = User.objects.create_user(username='geo_user', password='senha123')
+        # Administrador: os testes de update (PATCH) exigem perfil de administrador
+        self.user = User.objects.create_user(username='geo_user', password='senha123', is_staff=True)
         self.client.force_authenticate(user=self.user)
 
     @patch('apps.monitoramento.geocoding.geocodificar_endereco')

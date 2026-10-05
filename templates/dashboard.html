@@ -1,43 +1,11 @@
 {% extends 'base.html' %}
 {% load static %}
-{% block title %}Dashboard - MapRisco{% endblock %}
+{% block title %}Dashboard - MAPRISCO{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
 {% block extra_css %}
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="{% static 'leaflet/leaflet.css' %}">
     <style>
-        .head {
-            text-align: center;
-            margin-bottom: 12px;
-            position: relative;
-        }
-
-        .btn-create {
-            position: absolute;
-            right: 0;
-            top: 50%;
-            transform: translateY(-50%);
-            border: none;
-            border-radius: 6px;
-            min-height: 38px;
-            padding: 0 14px;
-            font-weight: 700;
-            color: #fff;
-            background: linear-gradient(145deg, #6cc257 0%, #4c9f3b 100%);
-            cursor: pointer;
-            box-shadow: 0 8px 18px rgba(60, 131, 48, 0.28);
-        }
-
-        .head h1 {
-            margin: 0;
-            font-size: 2rem;
-            font-weight: 700;
-        }
-
-        .head p {
-            margin: 3px 0 0;
-            color: var(--text-2);
-            font-size: 0.88rem;
-        }
-
         .stats {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -56,9 +24,9 @@
             box-shadow: 0 8px 16px rgba(43, 56, 85, 0.17);
         }
 
-        .stat.violet { background: linear-gradient(135deg, #7162d7 0%, #5f4fb9 100%); }
-        .stat.orange { background: linear-gradient(135deg, #ffb838 0%, #f39516 100%); }
-        .stat.blue { background: linear-gradient(135deg, #52a9df 0%, #3892cc 100%); }
+        .stat.brand { background: linear-gradient(135deg, #2a3d66 0%, #15213b 100%); }
+        .stat.danger { background: linear-gradient(135deg, #ed4b44 0%, #de332e 100%); }
+        .stat.info { background: linear-gradient(135deg, #66b3cf 0%, #4a98b8 100%); }
 
         .stat .value {
             font-size: 2.05rem;
@@ -73,25 +41,37 @@
         }
 
         .card {
-            border-radius: 4px;
+            border-radius: 10px;
             border: 1px solid var(--border);
             background: var(--panel);
             overflow: hidden;
+            box-shadow: 0 8px 24px rgba(22, 29, 44, 0.08);
         }
 
         .card-title {
             border-bottom: 1px solid var(--border);
             background: #f8f9fb;
-            padding: 8px 10px;
+            padding: 12px 16px;
+            font-weight: 700;
+            font-size: 1rem;
+            color: var(--brand-3);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-title a {
             font-weight: 600;
-            font-size: 0.96rem;
-            color: #4d5568;
+            font-size: 0.85rem;
+            color: var(--brand-2);
+            text-decoration: none;
         }
 
         .grid {
             display: grid;
             grid-template-columns: 1.15fr 1fr;
             gap: 10px;
+            align-items: start;
         }
 
         .left-stack,
@@ -155,27 +135,6 @@
         .txt-alto { color: var(--danger); }
         .txt-medio { color: #c68c12; }
         .txt-baixo { color: #2d9a4a; }
-
-        .table-footer {
-            border-top: 1px solid var(--border);
-            padding: 8px;
-            display: flex;
-            justify-content: flex-end;
-        }
-
-        .btn-all {
-            border: none;
-            border-radius: 4px;
-            min-height: 30px;
-            padding: 0 14px;
-            font-weight: 600;
-            color: #fff;
-            background: linear-gradient(145deg, #74c95e 0%, #57aa45 100%);
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-        }
 
         .loading {
             color: var(--text-2);
@@ -284,22 +243,37 @@
             border: 1px solid #d7dce8;
             background: #f2f4f8;
             color: #4f586d;
-            border-radius: 4px;
-            min-height: 34px;
-            min-width: 84px;
+            border-radius: 8px;
+            min-height: 40px;
+            min-width: 96px;
             font-weight: 600;
             cursor: pointer;
         }
 
-        .btn-primary {
+        .pick-map {
+            height: 240px;
+            border-radius: 8px;
+            border: 1px solid #d6dbe8;
+            cursor: crosshair;
+        }
+
+        .pick-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.82rem;
+            color: var(--text-2);
+        }
+
+        .pick-info button {
             border: none;
-            border-radius: 4px;
-            min-height: 34px;
-            min-width: 84px;
+            background: none;
+            color: var(--danger);
+            font-size: 0.82rem;
             font-weight: 600;
-            color: #fff;
-            background: linear-gradient(145deg, #4f79df 0%, #365dc2 100%);
             cursor: pointer;
+            padding: 0;
         }
 
         .form-message {
@@ -313,37 +287,36 @@
         @media (max-width: 1100px) {
             .grid { grid-template-columns: 1fr; }
             .stats { grid-template-columns: 1fr; }
-            .btn-create { position: static; transform: none; margin-top: 10px; }
         }
     </style>
 {% endblock %}
 
 {% block content %}
 <section class="page">
-    <div class="head">
-        <h1>Dashboard do Sistema MAPRISCO</h1>
-        <p>Visão geral dos dados de monitoramento</p>
-        {% if user.is_authenticated %}
-        <button id="openCreateArea" class="btn-create" type="button">Cadastrar Área de Risco</button>
-        {% endif %}
+    <div class="page-head">
+        <div>
+            <h1>Dashboard</h1>
+            <p>Visão geral dos dados de monitoramento</p>
+        </div>
+        <button id="openCreateArea" class="btn-main" type="button"><i class="fa-solid fa-circle-plus"></i> Cadastrar Área de Risco</button>
     </div>
 
     <div class="stats">
-        <article class="stat violet">
+        <article class="stat brand">
             <div>
                 <div class="value" id="total-areas">0</div>
                 <div class="label">Total de Áreas</div>
             </div>
             <i class="fa-solid fa-map-location-dot fa-xl"></i>
         </article>
-        <article class="stat orange">
+        <article class="stat danger">
             <div>
                 <div class="value" id="total-alertas">0</div>
                 <div class="label">Total de Alertas</div>
             </div>
             <i class="fa-solid fa-bell fa-xl"></i>
         </article>
-        <article class="stat blue">
+        <article class="stat info">
             <div>
                 <div class="value" id="total-registros">0</div>
                 <div class="label">Total de Registros</div>
@@ -362,7 +335,7 @@
             </article>
 
             <article class="card">
-                <div class="card-title">Alertas Recentes <a href="/alertas/" style="float:right; font-weight:500; color:#2f7f24;">Ver Todos</a></div>
+                <div class="card-title">Alertas Recentes <a href="/alertas/">Ver Todos</a></div>
                 <div class="table-box">
                     <table>
                         <thead>
@@ -383,7 +356,7 @@
 
         <div class="right-stack">
             <article class="card">
-                <div class="card-title">Últimos Registros</div>
+                <div class="card-title">Últimos Registros <a href="/monitoramento/">Ver Todos</a></div>
                 <div class="table-box">
                     <table>
                         <thead>
@@ -398,9 +371,6 @@
                             <tr><td colspan="4" class="loading">Carregando...</td></tr>
                         </tbody>
                     </table>
-                </div>
-                <div class="table-footer">
-                    <a class="btn-all" href="/monitoramento/">Ver Todos</a>
                 </div>
             </article>
         </div>
@@ -444,11 +414,21 @@
                         <label>Enviar uma Foto (opcional)</label>
                         <input type="file" id="areaFoto" name="foto" accept="image/*">
                     </div>
+                    <div class="field full">
+                        <label>Local no mapa (opcional)</label>
+                        <div id="pickMap" class="pick-map"></div>
+                        <div class="pick-info">
+                            <span id="pickText">Clique no mapa para marcar o local exato. Se não marcar, o sistema localiza pelo endereço.</span>
+                            <button type="button" id="pickClear" hidden>Limpar</button>
+                        </div>
+                        <input type="hidden" id="areaLat" name="latitude" disabled>
+                        <input type="hidden" id="areaLng" name="longitude" disabled>
+                    </div>
                 </div>
                 <div id="areaFormMessage" class="form-message"></div>
             </div>
             <div class="modal-footer">
-                <button type="submit" class="btn-primary" id="saveAreaBtn">Salvar</button>
+                <button type="submit" class="btn-main" id="saveAreaBtn">Salvar</button>
                 <button type="button" class="btn-secondary" id="cancelAreaBtn">Cancelar</button>
             </div>
         </form>
@@ -457,6 +437,7 @@
 {% endblock %}
 
 {% block scripts %}
+    <script src="{% static 'leaflet/leaflet.js' %}"></script>
     <script>
         let riskChart;
         const areaModal = document.getElementById('areaModal');
@@ -464,57 +445,24 @@
         const areaFormMessage = document.getElementById('areaFormMessage');
         const saveAreaBtn = document.getElementById('saveAreaBtn');
 
-        function parseApiList(payload) {
-            if (Array.isArray(payload)) return payload;
-            if (payload && Array.isArray(payload.results)) return payload.results;
-            return [];
-        }
-
-        function normalizeRisk(value) {
-            return (value || '').toString().toLowerCase().trim();
-        }
-
-        function riskClass(riskValue) {
-            const risk = normalizeRisk(riskValue);
-            if (risk === 'alto' || risk.includes('critic')) return 'alto';
-            if (risk === 'medio' || risk.includes('alert')) return 'medio';
+        // Cor do indicador: vermelho (crítico/alto), amarelo (médio/alerta) ou verde
+        function corClass(value) {
+            const v = (value || '').toString().toLowerCase();
+            if (v === 'alto' || v === 'critico') return 'alto';
+            if (v === 'medio' || v === 'alerta') return 'medio';
             return 'baixo';
         }
 
-        function fmtDate(value) {
-            if (!value) return '-';
-            const dt = new Date(value);
-            if (Number.isNaN(dt.getTime())) return '-';
-            return dt.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        function badge(value, label) {
+            const cls = corClass(value);
+            return `<span class="badge txt-${cls}"><span class="dot ${cls}"></span>${esc(label)}</span>`;
         }
 
-        function getCookie(name) {
-            const cookieValue = document.cookie
-                .split('; ')
-                .find((row) => row.startsWith(name + '='));
-            return cookieValue ? decodeURIComponent(cookieValue.split('=')[1]) : '';
-        }
-
-        function riskBadgeText(risk) {
-            if (risk === 'alto') return 'Crítico';
-            if (risk === 'medio') return 'Alerta';
-            return 'Seguro';
-        }
-
-        function buildRiskBadge(risk) {
-            const label = riskBadgeText(risk);
-            return `<span class="badge txt-${risk}"><span class="dot ${risk}"></span>${label}</span>`;
-        }
-
-        function updateCards(areas, alertas, registros) {
-            document.getElementById('total-areas').textContent = areas.length;
-            document.getElementById('total-alertas').textContent = alertas.length;
-            document.getElementById('total-registros').textContent = registros.length;
-        }
+        const STATUS_LABEL = { critico: 'Crítico', alerta: 'Alerta', normal: 'Normal' };
 
         function renderChart(areas) {
             const counts = { alto: 0, medio: 0, baixo: 0 };
-            areas.forEach((area) => { counts[riskClass(area.nivel_risco)] += 1; });
+            areas.forEach((area) => { counts[corClass(area.nivel_risco)] += 1; });
 
             const ctx = document.getElementById('riskChart').getContext('2d');
             if (riskChart) riskChart.destroy();
@@ -541,77 +489,55 @@
             });
         }
 
-        function areaName(record, areasMap) {
-            if (record.area_nome) return record.area_nome;
-            if (record.nome_area) return record.nome_area;
-            if (record.area && areasMap[record.area]) return areasMap[record.area].nome;
-            return record.area ? `Área ${record.area}` : 'Sem área';
-        }
-
-        function renderRegistrosTable(registros, areasMap) {
+        function renderRegistrosTable(registros) {
             const tbody = document.getElementById('registros-body');
-            const rows = registros.slice(0, 5);
-            if (!rows.length) {
+            if (!registros.length) {
                 tbody.innerHTML = '<tr><td colspan="4" class="loading">Sem registros.</td></tr>';
                 return;
             }
-            tbody.innerHTML = rows.map((row) => {
-                const risk = riskClass((areasMap[row.area] || {}).nivel_risco || row.status);
-                return `
+            tbody.innerHTML = registros.map((row) => `
                     <tr>
                         <td>${fmtDate(row.data_hora)}</td>
-                        <td>${areaName(row, areasMap)}</td>
-                        <td>${row.nivel_agua ?? '-'}</td>
-                        <td>${buildRiskBadge(risk)}</td>
-                    </tr>`;
-            }).join('');
+                        <td>${esc(row.area_nome || 'Sem área')}</td>
+                        <td>${fmtNivel(row.nivel_agua)}</td>
+                        <td>${badge(row.status, STATUS_LABEL[row.status] || row.status)}</td>
+                    </tr>`).join('');
         }
 
-        function renderAlertasTable(alertas, targetId, areasMap) {
-            const tbody = document.getElementById(targetId);
-            const rows = alertas.slice(0, 5);
-            if (!rows.length) {
+        function renderAlertasTable(alertas) {
+            const tbody = document.getElementById('left-alertas-body');
+            if (!alertas.length) {
                 tbody.innerHTML = '<tr><td colspan="4" class="loading">Sem alertas.</td></tr>';
                 return;
             }
-            tbody.innerHTML = rows.map((row) => {
-                const risk = riskClass(row.nivel);
-                const area = row.area_nome || (row.area ? areaName(row, areasMap) : 'Sem área');
-                return `
+            tbody.innerHTML = alertas.map((row) => `
                     <tr>
                         <td>${fmtDate(row.data_hora)}</td>
-                        <td>${area}</td>
-                        <td>${buildRiskBadge(risk)}</td>
-                        <td>${row.mensagem || '-'}</td>
-                    </tr>`;
-            }).join('');
+                        <td>${esc(row.area_nome || 'Sem área')}</td>
+                        <td>${badge(row.nivel, nivelAlertaLabel(row.nivel))}</td>
+                        <td>${esc(row.mensagem || '-')}</td>
+                    </tr>`).join('');
         }
 
         async function loadDashboard() {
             try {
-                const fetchOptions = { credentials: 'same-origin' };
-                const [areasRes, alertasRes, monitoramentoRes] = await Promise.all([
-                    fetch('/api/areas/', fetchOptions),
-                    fetch('/api/alertas/', fetchOptions),
-                    fetch('/api/monitoramento/', fetchOptions)
+                // Áreas: todas (o gráfico precisa de todas). Alertas e registros: só os 5 mais recentes,
+                // e o total vem do "count" da API, que não é limitado pela paginação.
+                const [areas, alertasRes, registrosRes] = await Promise.all([
+                    fetchAll('/api/areas/'),
+                    fetch('/api/alertas/?page_size=5', { credentials: 'same-origin' }),
+                    fetch('/api/monitoramento/?page_size=5', { credentials: 'same-origin' })
                 ]);
-                if (!areasRes.ok || !alertasRes.ok || !monitoramentoRes.ok) throw new Error('Falha ao carregar dados do dashboard.');
+                if (!alertasRes.ok || !registrosRes.ok) throw new Error('Falha ao carregar dados do dashboard.');
+                const [alertasData, registrosData] = await Promise.all([alertasRes.json(), registrosRes.json()]);
 
-                const [areasRaw, alertasRaw, monitoramentoRaw] = await Promise.all([
-                    areasRes.json(), alertasRes.json(), monitoramentoRes.json()
-                ]);
+                document.getElementById('total-areas').textContent = areas.length;
+                document.getElementById('total-alertas').textContent = alertasData.count ?? parseApiList(alertasData).length;
+                document.getElementById('total-registros').textContent = registrosData.count ?? parseApiList(registrosData).length;
 
-                const areas = parseApiList(areasRaw);
-                const alertas = parseApiList(alertasRaw);
-                const monitoramento = parseApiList(monitoramentoRaw);
-
-                const areasMap = {};
-                areas.forEach((area) => { if (area.id !== undefined && area.id !== null) areasMap[area.id] = area; });
-
-                updateCards(areas, alertas, monitoramento);
                 renderChart(areas);
-                renderRegistrosTable(monitoramento, areasMap);
-                renderAlertasTable(alertas, 'left-alertas-body', areasMap);
+                renderRegistrosTable(parseApiList(registrosData));
+                renderAlertasTable(parseApiList(alertasData));
             } catch (error) {
                 console.error(error);
                 document.getElementById('registros-body').innerHTML = '<tr><td colspan="4" class="loading">Erro ao carregar.</td></tr>';
@@ -619,9 +545,63 @@
             }
         }
 
+        // Mini mapa do cadastro: o clique define latitude/longitude manualmente.
+        // Os campos ficam desabilitados (não são enviados) até o usuário marcar um ponto,
+        // assim o sistema continua usando a busca pelo endereço quando nada é marcado.
+        const areaLat = document.getElementById('areaLat');
+        const areaLng = document.getElementById('areaLng');
+        const pickText = document.getElementById('pickText');
+        const pickClear = document.getElementById('pickClear');
+        const PICK_HINT = pickText.textContent;
+        let pickMap = null;
+        let pickMarker = null;
+
+        function setPickedPoint(latlng) {
+            const lat = latlng.lat.toFixed(6);
+            const lng = latlng.lng.toFixed(6);
+            if (pickMarker) pickMarker.setLatLng(latlng);
+            else pickMarker = L.marker(latlng).addTo(pickMap);
+            areaLat.value = lat;
+            areaLng.value = lng;
+            areaLat.disabled = false;
+            areaLng.disabled = false;
+            pickText.textContent = `Local marcado: ${lat}, ${lng}`;
+            pickClear.hidden = false;
+        }
+
+        function clearPickedPoint() {
+            if (pickMarker) {
+                pickMap.removeLayer(pickMarker);
+                pickMarker = null;
+            }
+            areaLat.value = '';
+            areaLng.value = '';
+            areaLat.disabled = true;
+            areaLng.disabled = true;
+            pickText.textContent = PICK_HINT;
+            pickClear.hidden = true;
+        }
+
+        function initPickMap() {
+            if (pickMap) {
+                pickMap.invalidateSize();
+                return;
+            }
+            pickMap = L.map('pickMap').setView([{{ MAP_CENTER_LAT }}, {{ MAP_CENTER_LNG }}], 13);
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+                attribution: '&copy; Esri',
+                maxZoom: 19
+            }).addTo(pickMap);
+            pickMap.on('click', (event) => setPickedPoint(event.latlng));
+        }
+
+        pickClear.addEventListener('click', clearPickedPoint);
+
         function openAreaModal() {
             areaModal.classList.add('show');
             areaModal.setAttribute('aria-hidden', 'false');
+            // O mapa precisa estar visível para calcular o tamanho corretamente
+            setTimeout(initPickMap, 50);
         }
 
         function closeAreaModal() {
@@ -665,6 +645,7 @@
                 }
                 areaFormMessage.classList.add('success');
                 areaForm.reset();
+                clearPickedPoint();
                 await loadDashboard();
                 setTimeout(() => closeAreaModal(), 1500);
             } catch (error) {
@@ -681,6 +662,10 @@
         document.getElementById('cancelAreaBtn').addEventListener('click', closeAreaModal);
         areaModal.addEventListener('click', (event) => { if (event.target === areaModal) closeAreaModal(); });
         areaForm.addEventListener('submit', submitAreaForm);
-        document.addEventListener('DOMContentLoaded', loadDashboard);
+        document.addEventListener('DOMContentLoaded', () => {
+            loadDashboard();
+            // Atalho do menu "Cadastrar Área" (/dashboard/?nova=1) abre o formulário direto
+            if (new URLSearchParams(window.location.search).has('nova')) openAreaModal();
+        });
     </script>
 {% endblock %}

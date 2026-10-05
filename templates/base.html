@@ -4,7 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}MapRisco{% endblock %}</title>
+    <title>{% block title %}MAPRISCO{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'images/maprisco-icon.svg' %}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -24,6 +25,10 @@
             --warning: #f6be2b;
             --success: #73c95f;
             --info: #58a7c8;
+            --navy: #15213b;
+            --navy-2: #1d2c4d;
+            --logo-green: #7dd321;
+            --logo-blue: #38bdf8;
         }
 
         * {
@@ -39,67 +44,64 @@
 
         .layout {
             display: grid;
-            grid-template-columns: 220px 1fr;
+            grid-template-columns: 240px 1fr;
             min-height: 100vh;
         }
 
+        /* Barra lateral fixa, na cor da logo */
         .sidebar {
-            position: relative;
-            background: linear-gradient(170deg, #68b541 0%, #4f9a33 35%, #2f7f24 100%);
-            color: #f0fff1;
-            padding: 24px 0 18px;
-            overflow: hidden;
-        }
-
-        .sidebar::before,
-        .sidebar::after {
-            content: '';
-            position: absolute;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.08);
-            filter: blur(1px);
-            pointer-events: none;
-        }
-
-        .sidebar::before {
-            width: 280px;
-            height: 280px;
-            left: -150px;
-            top: -50px;
-        }
-
-        .sidebar::after {
-            width: 320px;
-            height: 320px;
-            left: -180px;
-            bottom: -160px;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            align-self: start;
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(180deg, var(--navy-2) 0%, var(--navy) 100%);
+            color: #e6edf8;
+            padding: 22px 0 16px;
+            overflow-y: auto;
         }
 
         .brand {
-            position: relative;
-            z-index: 1;
             display: flex;
             align-items: center;
             gap: 10px;
-            padding: 0 20px 12px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+            padding: 0 18px 18px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            text-decoration: none;
         }
 
         .brand-icon {
-            width: 32px;
-            height: 32px;
+            width: 40px;
+            height: 48px;
+            flex-shrink: 0;
         }
 
         .brand-name {
-            font-weight: 700;
-            letter-spacing: 0.6px;
-            font-size: 1rem;
+            display: block;
+            font-weight: 800;
+            font-size: 1.35rem;
+            letter-spacing: 0.5px;
+            line-height: 1;
+        }
+
+        .brand-name .g { color: var(--logo-green); }
+        .brand-name .b { color: var(--logo-blue); }
+
+        .brand-sub {
+            display: block;
+            margin-top: 5px;
+            font-size: 0.6rem;
+            font-weight: 600;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+            line-height: 1.35;
+            color: rgba(230, 237, 248, 0.7);
         }
 
         .menu {
-            position: relative;
-            z-index: 1;
-            margin-top: 12px;
+            margin-top: 14px;
+            flex: 1;
         }
 
         .menu-link {
@@ -107,17 +109,25 @@
             align-items: center;
             gap: 12px;
             padding: 12px 22px;
-            color: rgba(244, 255, 245, 0.92);
+            color: rgba(230, 237, 248, 0.78);
             text-decoration: none;
             font-weight: 500;
-            transition: background 0.2s ease;
+            border-left: 3px solid transparent;
+            transition: background 0.2s ease, color 0.2s ease;
         }
 
-        .menu-link:hover,
+        .menu-link:hover {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
         .menu-link.active {
             color: #ffffff;
-            background: rgba(24, 56, 18, 0.26);
+            background: rgba(125, 211, 33, 0.12);
+            border-left-color: var(--logo-green);
         }
+
+        .menu-link.active i { color: var(--logo-green); }
 
         .menu-link i {
             width: 22px;
@@ -125,17 +135,13 @@
         }
 
         .sidebar-user {
-            position: absolute;
-            z-index: 1;
-            left: 20px;
-            right: 20px;
-            bottom: 16px;
+            margin: 0 18px;
             padding-top: 14px;
-            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
             display: flex;
             align-items: center;
             gap: 10px;
-            color: rgba(255, 255, 255, 0.95);
+            color: #ffffff;
         }
 
         .user-meta {
@@ -144,20 +150,23 @@
         }
 
         .avatar {
-            width: 44px;
-            height: 44px;
+            width: 40px;
+            height: 40px;
             border-radius: 50%;
             background: #d9f4cc;
             color: var(--brand-3);
             display: grid;
             place-items: center;
-            font-size: 1.2rem;
+            font-size: 1.05rem;
+            flex-shrink: 0;
         }
 
         .avatar.small {
             width: 38px;
             height: 38px;
             font-size: 1rem;
+            border: none;
+            cursor: pointer;
         }
 
         .user-name {
@@ -172,17 +181,18 @@
         .user-action {
             display: inline-block;
             font-size: 0.78rem;
-            color: #d8f8cd;
+            color: var(--logo-blue);
             text-decoration: none;
         }
 
         .main {
             padding: 0;
+            min-width: 0;
         }
 
         .topbar {
             min-height: 62px;
-            background: #f3f5f8;
+            background: #ffffff;
             border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
@@ -192,36 +202,23 @@
             flex-wrap: wrap;
         }
 
-        .search-wrap {
-            position: relative;
-            width: min(560px, 100%);
-        }
-
-        .search-wrap i {
-            position: absolute;
-            left: 14px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #8a94a8;
-            font-size: 0.95rem;
-        }
-
-        .search-wrap input {
-            width: 100%;
-            border: 1px solid #d7dce6;
-            background: #ffffff;
-            border-radius: 9px;
-            height: 42px;
-            padding: 0 14px 0 38px;
-            outline: none;
-            color: var(--text-1);
+        .crumb {
+            display: flex;
+            align-items: center;
+            gap: 8px;
             font-size: 0.9rem;
+            color: var(--text-2);
+        }
+
+        .crumb strong {
+            color: var(--text-1);
+            font-weight: 700;
         }
 
         .top-user {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 14px;
             color: #65708a;
             font-weight: 500;
             font-size: 0.9rem;
@@ -230,7 +227,24 @@
         .notify {
             position: relative;
             color: #6a738a;
-            font-size: 1.05rem;
+            font-size: 1.15rem;
+        }
+
+        .notify-badge {
+            position: absolute;
+            top: -7px;
+            right: -10px;
+            min-width: 18px;
+            height: 18px;
+            padding: 0 5px;
+            border-radius: 9px;
+            background: var(--danger);
+            color: #fff;
+            font-size: 0.68rem;
+            font-weight: 700;
+            display: grid;
+            place-items: center;
+            line-height: 1;
         }
 
         .content {
@@ -239,6 +253,65 @@
 
         .page {
             padding: 18px 24px 24px;
+        }
+
+        /* Cabeçalho padrão das telas internas: título à esquerda, ações à direita */
+        .page-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+
+        .page-head h1 {
+            margin: 0;
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: var(--text-1);
+        }
+
+        .page-head p {
+            margin: 4px 0 0;
+            color: var(--text-2);
+            font-size: 0.88rem;
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+            box-shadow: 0 8px 24px rgba(22, 29, 44, 0.08);
+        }
+
+        .btn-main {
+            border: none;
+            border-radius: 8px;
+            min-height: 40px;
+            padding: 0 16px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            color: #fff;
+            background: linear-gradient(145deg, #74c95e 0%, #57aa45 100%);
+            box-shadow: 0 8px 18px rgba(60, 131, 48, 0.25);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+
+        .btn-main:hover {
+            color: #fff;
+            filter: brightness(1.05);
+        }
+
+        .btn-main:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
 
         .stat-card {
@@ -281,28 +354,153 @@
             margin-top: 2px;
         }
 
+        /* Botão do menu (☰): só aparece em telas pequenas */
+        .menu-toggle {
+            display: none;
+            border: none;
+            background: none;
+            color: var(--text-1);
+            font-size: 1.3rem;
+            padding: 4px 8px;
+            margin-left: -8px;
+            cursor: pointer;
+        }
+
+        .sidebar-fundo {
+            display: none;
+        }
+
+        /* Avisos na tela (substituem o alert do navegador) */
+        #avisos {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            z-index: 3000;
+            display: grid;
+            gap: 8px;
+            max-width: min(380px, calc(100vw - 40px));
+        }
+
+        .aviso {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            color: #fff;
+            font-size: 0.9rem;
+            font-weight: 600;
+            box-shadow: 0 10px 24px rgba(19, 31, 50, 0.25);
+            animation: aviso-entra 0.2s ease;
+            transition: opacity 0.4s ease, transform 0.4s ease;
+        }
+
+        .aviso-erro { background: #dc2626; }
+        .aviso-sucesso { background: #2f7f24; }
+        .aviso.saindo { opacity: 0; transform: translateY(8px); }
+
+        @keyframes aviso-entra {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: none; }
+        }
+
+        /* Confirmação na tela (substitui o confirm do navegador) */
+        .confirmar-fundo {
+            position: fixed;
+            inset: 0;
+            z-index: 3000;
+            background: rgba(21, 33, 59, 0.45);
+            display: grid;
+            place-items: center;
+            padding: 16px;
+        }
+
+        .confirmar-card {
+            width: min(420px, 100%);
+            background: #fff;
+            border-radius: 12px;
+            padding: 20px 22px;
+            box-shadow: 0 20px 44px rgba(19, 29, 45, 0.3);
+        }
+
+        .confirmar-card h3 {
+            margin: 0 0 8px;
+            font-size: 1.15rem;
+            font-weight: 700;
+        }
+
+        .confirmar-card p {
+            margin: 0 0 18px;
+            color: var(--text-2);
+        }
+
+        .confirmar-acoes {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .confirmar-acoes button {
+            border-radius: 8px;
+            min-height: 40px;
+            padding: 0 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .btn-cancelar {
+            border: 1px solid #d7dce8;
+            background: #f2f4f8;
+            color: #4f586d;
+        }
+
+        .btn-perigo {
+            border: none;
+            background: var(--danger);
+            color: #fff;
+        }
+
         @media (max-width: 1100px) {
             .layout {
                 grid-template-columns: 1fr;
             }
 
+            /* Barra lateral vira um menu que desliza da esquerda */
             .sidebar {
-                position: static;
-                min-height: auto;
-                padding-bottom: 96px;
+                position: fixed;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                width: 260px;
+                z-index: 2000;
+                transform: translateX(-100%);
+                transition: transform 0.25s ease;
+                box-shadow: 8px 0 24px rgba(0, 0, 0, 0.25);
             }
 
-            .main {
-                min-height: 100vh;
+            body.menu-aberto .sidebar {
+                transform: none;
+            }
+
+            body.menu-aberto .sidebar-fundo {
+                display: block;
+                position: fixed;
+                inset: 0;
+                z-index: 1999;
+                background: rgba(21, 33, 59, 0.45);
+            }
+
+            .menu-toggle {
+                display: inline-block;
             }
 
             .topbar {
-                height: auto;
                 padding: 12px 16px;
+                flex-wrap: nowrap;
             }
 
-            .search-wrap {
-                width: 100%;
+            .top-user > span {
+                display: none;
             }
         }
 
@@ -318,18 +516,23 @@
 <body>
     <div class="layout">
         <aside class="sidebar">
-            <div class="brand">
-                <img src="{% static 'images/maprisco-logo.svg' %}" alt="MapRisco Logo" class="brand-icon" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                <div class="brand-icon" style="display:none; width:32px; height:32px; background:linear-gradient(135deg, #68b541, #2f7f24); border-radius:8px; align-items:center; justify-content:center; color:white; font-weight:bold;">MR</div>
-                <span class="brand-name">MAPRISCO</span>
-            </div>
+            <a class="brand" href="/">
+                <img src="{% static 'images/maprisco-icon.svg' %}" alt="" class="brand-icon">
+                <div>
+                    <span class="brand-name"><span class="g">MAP</span><span class="b">RISCO</span></span>
+                    <span class="brand-sub">Monitoramento e alerta<br>de áreas de risco</span>
+                </div>
+            </a>
 
             <nav class="menu">
                 <a class="menu-link{% if request.resolver_match.url_name == 'index' %} active{% endif %}" href="/">
                     <i class="fa-solid fa-location-dot"></i>Mapa
                 </a>
-                <a class="menu-link{% if request.resolver_match.url_name == 'dashboard' %} active{% endif %}" href="/dashboard/">
+                <a class="menu-link{% if request.resolver_match.url_name == 'dashboard' and not request.GET.nova %} active{% endif %}" href="/dashboard/">
                     <i class="fa-solid fa-chart-column"></i>Dashboard
+                </a>
+                <a class="menu-link{% if request.resolver_match.url_name == 'dashboard' and request.GET.nova %} active{% endif %}" href="/dashboard/?nova=1">
+                    <i class="fa-solid fa-circle-plus"></i>Cadastrar Área
                 </a>
                 <a class="menu-link{% if request.resolver_match.url_name == 'alertas' %} active{% endif %}" href="/alertas/">
                     <i class="fa-solid fa-bell"></i>Alertas
@@ -337,34 +540,61 @@
                 <a class="menu-link{% if request.resolver_match.url_name == 'monitoramento' %} active{% endif %}" href="/monitoramento/">
                     <i class="fa-solid fa-seedling"></i>Monitoramento
                 </a>
+                {% if user.is_staff %}
                 <a class="menu-link" href="/admin/">
                     <i class="fa-solid fa-gear"></i>Usuários
                 </a>
+                {% endif %}
             </nav>
 
             <div class="sidebar-user">
                 <div class="avatar"><i class="fa-solid fa-user"></i></div>
                 <div class="user-meta">
-                    <div class="user-name">{% if user.is_authenticated %}{{ user.first_name|default:user.username|truncatechars:26 }}{% else %}Visitante{% endif %}</div>
+                    <div class="user-name" title="{{ user.get_full_name|default:user.username }}">{% if user.is_authenticated %}{{ user.first_name|default:user.username|title }}{% else %}Visitante{% endif %}</div>
                     {% if user.is_authenticated %}
-                    <a class="user-action" href="{% url 'logout' %}">Logout</a>
+                    <a class="user-action" href="{% url 'logout' %}"><i class="fa-solid fa-right-from-bracket"></i> Sair</a>
                     {% else %}
-                    <a class="user-action" href="{% url 'login' %}">Login</a>
+                    <a class="user-action" href="{% url 'login' %}"><i class="fa-solid fa-right-to-bracket"></i> Entrar</a>
                     {% endif %}
                 </div>
             </div>
         </aside>
+        <div class="sidebar-fundo" id="sidebarFundo"></div>
 
         <main class="main">
             <header class="topbar">
-                <div class="search-wrap">
-                    <i class="fa-solid fa-magnifying-glass"></i>
-                    <input id="topSearch" type="text" placeholder="Pesquisar no mapa...">
+                <div class="crumb">
+                    <button class="menu-toggle" type="button" id="menuToggle" aria-label="Abrir menu" aria-expanded="false">
+                        <i class="fa-solid fa-bars"></i>
+                    </button>
+                    <i class="fa-solid fa-house"></i> MAPRISCO <i class="fa-solid fa-chevron-right" style="font-size:0.7rem"></i>
+                    <strong>{% block page_title %}{% endblock %}</strong>
                 </div>
                 <div class="top-user">
-                    <span>Olá, {% if user.is_authenticated %}{{ user.first_name|default:user.username|truncatechars:22 }}{% else %}visitante{% endif %}</span>
-                    <a href="/alertas/" class="notify" aria-label="Alertas"><i class="fa-solid fa-bell"></i></a>
-                    <div class="avatar small"><i class="fa-solid fa-user"></i></div>
+                    {% if user.is_authenticated %}
+                    <span>Olá, {{ user_first_name }}</span>
+                    {% else %}
+                    <span>Olá, visitante</span>
+                    {% endif %}
+                    <a href="/alertas/" class="notify" aria-label="Alertas abertos: {{ open_alerts_count }}" title="{{ open_alerts_count }} alerta(s) aberto(s)">
+                        <i class="fa-solid fa-bell"></i>
+                        {% if open_alerts_count %}<span class="notify-badge">{% if open_alerts_count > 99 %}99+{% else %}{{ open_alerts_count }}{% endif %}</span>{% endif %}
+                    </a>
+                    <div class="dropdown">
+                        <button class="avatar small" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Menu do usuário">
+                            <i class="fa-solid fa-user"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                            {% if user.is_authenticated %}
+                            <li><span class="dropdown-item-text small text-muted">{{ user.get_full_name|default:user.username }}</span></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{% url 'logout' %}"><i class="fa-solid fa-right-from-bracket me-2"></i>Sair</a></li>
+                            {% else %}
+                            <li><a class="dropdown-item" href="{% url 'login' %}"><i class="fa-solid fa-right-to-bracket me-2"></i>Entrar</a></li>
+                            <li><a class="dropdown-item" href="{% url 'register' %}"><i class="fa-solid fa-user-plus me-2"></i>Criar conta</a></li>
+                            {% endif %}
+                        </ul>
+                    </div>
                 </div>
             </header>
 
@@ -373,15 +603,20 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'js/comum.js' %}"></script>
     <script>
-        const topSearch = document.getElementById('topSearch');
-        if (topSearch) {
-            topSearch.addEventListener('keydown', (event) => {
-                if (event.key === 'Enter' && topSearch.value.trim()) {
-                    window.location.href = '/?q=' + encodeURIComponent(topSearch.value.trim());
-                }
-            });
-        }
+        // Menu lateral no celular
+        (function () {
+            const toggle = document.getElementById('menuToggle');
+            const fundo = document.getElementById('sidebarFundo');
+            const setMenu = (aberto) => {
+                document.body.classList.toggle('menu-aberto', aberto);
+                toggle.setAttribute('aria-expanded', String(aberto));
+            };
+            toggle.addEventListener('click', () => setMenu(!document.body.classList.contains('menu-aberto')));
+            fundo.addEventListener('click', () => setMenu(false));
+            document.addEventListener('keydown', (event) => { if (event.key === 'Escape') setMenu(false); });
+        })();
     </script>
     {% block scripts %}{% endblock %}
 </body>

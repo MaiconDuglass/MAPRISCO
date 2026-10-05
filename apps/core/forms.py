@@ -44,9 +44,21 @@ class RegistrationForm(UserCreationForm):
         ),
     )
 
+    terms = forms.BooleanField(
+        required=True,
+        error_messages={'required': 'Você deve concordar com os Termos de Serviço e a Política de Privacidade.'},
+    )
+
     class Meta:
         model = User
         fields = ('full_name', 'username', 'password1', 'password2')
+
+    def clean_username(self):
+        # E-mail sempre em minúsculas: "Maria@Exemplo.com" e "maria@exemplo.com" são a mesma conta
+        email = self.cleaned_data['username'].strip().lower()
+        if User.objects.filter(username__iexact=email).exists():
+            raise forms.ValidationError('Já existe uma conta cadastrada com este e-mail.')
+        return email
 
     def save(self, commit=True):
         user = super().save(commit=False)

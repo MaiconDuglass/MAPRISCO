@@ -1,32 +1,43 @@
 {% extends 'base.html' %}
-{% block title %}Política de Privacidade - MapRisco{% endblock %}
+{% block title %}Política de Privacidade - MAPRISCO{% endblock %}
+{% block page_title %}Política de Privacidade{% endblock %}
+{% block extra_css %}
+<style>
+    .legal-text { padding: 20px 24px; }
+    .legal-text h2 { font-size: 1.15rem; color: var(--brand-3); margin-top: 18px; }
+    .legal-text h2:first-child { margin-top: 0; }
+    .legal-footer { margin-top: 18px; color: var(--text-2); font-size: 0.85rem; }
+</style>
+{% endblock %}
 {% block content %}
 <section class="page">
-    <div style="text-align:center; margin-bottom:16px;">
-        <h1 style="margin:0; font-size:2rem; font-weight:700;">Política de Privacidade</h1>
-        <p style="margin:3px 0 0; color:var(--text-2); font-size:0.88rem;">Última atualização: agosto de 2026</p>
+    <div class="page-head">
+        <div>
+            <h1>Política de Privacidade</h1>
+            <p>Última atualização: agosto de 2026</p>
+        </div>
     </div>
 
-    <div class="panel" style="background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:20px 24px; box-shadow:0 8px 24px rgba(22,29,44,0.08);">
-        <h2 style="font-size:1.15rem; color:var(--brand-3);">1. Dados Coletados</h2>
+    <div class="panel legal-text">
+        <h2>1. Dados Coletados</h2>
         <p>Coletamos as informações fornecidas no cadastro (nome e e-mail) e os dados inseridos pelos usuários na plataforma, como áreas de risco, medições de nível de água e alertas.</p>
 
-        <h2 style="font-size:1.15rem; color:var(--brand-3);">2. Uso dos Dados</h2>
+        <h2>2. Uso dos Dados</h2>
         <p>Os dados são utilizados exclusivamente para o funcionamento do sistema: autenticação, monitoramento de áreas de risco, geração de alertas e exibição de estatísticas.</p>
 
-        <h2 style="font-size:1.15rem; color:var(--brand-3);">3. Armazenamento e Segurança</h2>
+        <h2>3. Armazenamento e Segurança</h2>
         <p>As senhas são armazenadas de forma criptografada e as informações são protegidas por medidas de segurança adequadas. Não vendemos nem compartilhamos seus dados com terceiros.</p>
 
-        <h2 style="font-size:1.15rem; color:var(--brand-3);">4. Seus Direitos</h2>
+        <h2>4. Seus Direitos</h2>
         <p>Você pode solicitar a exclusão de sua conta e dos dados associados a qualquer momento, entrando em contato pelos canais do sistema.</p>
 
-        <h2 style="font-size:1.15rem; color:var(--brand-3);">5. Cookies</h2>
+        <h2>5. Cookies</h2>
         <p>Utilizamos cookies de sessão para manter você autenticado durante a navegação. Eles não são utilizados para rastreamento publicitário.</p>
 
-        <h2 style="font-size:1.15rem; color:var(--brand-3);">6. Alterações nesta Política</h2>
+        <h2>6. Alterações nesta Política</h2>
         <p>Esta Política pode ser atualizada periodicamente. Alterações significativas serão informadas na plataforma.</p>
 
-        <p style="margin-top:18px; color:var(--text-2); font-size:0.85rem;">MapRisco - Monitoramento de Áreas de Risco.</p>
+        <p class="legal-footer">MAPRISCO - Monitoramento de Áreas de Risco.</p>
     </div>
 </section>
 {% endblock %}

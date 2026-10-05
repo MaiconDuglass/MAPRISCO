@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     # Third-party apps
     'rest_framework',              # Django REST Framework for API
     'rest_framework_simplejwt',    # JWT authentication for API
+    'rest_framework_simplejwt.token_blacklist',  # Invalida refresh tokens antigos após a rotação
     'corsheaders',                 # CORS headers for the API
     'whitenoise.runserver_nostatic',  # Serve static files via WhiteNoise
 
@@ -99,6 +100,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',   # User authentication
                 'django.contrib.messages.context_processors.messages', # Messages
                 'maprisco.context_processors.map_settings',      # Map settings
+                'maprisco.context_processors.navbar',            # Top bar data (name, open alerts)
             ],
         },
     },
@@ -120,8 +122,7 @@ REST_FRAMEWORK = {
         'rest_framework.filters.SearchFilter',   # ?search=...
         'rest_framework.filters.OrderingFilter',  # ?ordering=...
     ),
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 100,
+    'DEFAULT_PAGINATION_CLASS': 'apps.monitoramento.pagination.PaginacaoPadrao',
     'DEFAULT_THROTTLE_CLASSES': (
         'rest_framework.throttling.AnonRateThrottle',
         'rest_framework.throttling.UserRateThrottle',
@@ -243,7 +244,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'pt-br'  # Language for the application
 
-TIME_ZONE = 'America/Fortaleza'  # Time zone setting for Brazil
+TIME_ZONE = 'America/Belem'  # Fuso horário do Pará (UTC-3)
 
 USE_I18N = True          # Enable internationalization
 
