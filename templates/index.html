@@ -1,278 +1,13 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MapRisco - Mapa</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}MapRisco - Mapa{% endblock %}
+{% block extra_css %}
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root {
-            --brand-1: #5ea93c;
-            --brand-2: #2f7f24;
-            --brand-3: #214f1b;
-            --surface: #f4f6f8;
-            --panel: #ffffff;
-            --text-1: #2f3442;
-            --text-2: #7a8398;
-            --border: #e6e9ef;
-            --danger: #ef4444;
-            --warning: #f6be2b;
-            --success: #73c95f;
-            --info: #58a7c8;
-        }
-
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            margin: 0;
-            font-family: 'Montserrat', sans-serif;
-            background: radial-gradient(circle at 25% -10%, #fdfefe 0, #f3f6f8 45%, #ebeff4 100%);
-            color: var(--text-1);
-        }
-
-        .layout {
-            display: grid;
-            grid-template-columns: 220px 1fr;
-            min-height: 100vh;
-        }
-
-        .sidebar {
-            position: relative;
-            background: linear-gradient(170deg, #68b541 0%, #4f9a33 35%, #2f7f24 100%);
-            color: #f0fff1;
-            padding: 24px 0 18px;
-            overflow: hidden;
-        }
-
-        .sidebar::before,
-        .sidebar::after {
-            content: '';
-            position: absolute;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.08);
-            filter: blur(1px);
-            pointer-events: none;
-        }
-
-        .sidebar::before {
-            width: 280px;
-            height: 280px;
-            left: -150px;
-            top: -50px;
-        }
-
-        .sidebar::after {
-            width: 320px;
-            height: 320px;
-            left: -180px;
-            bottom: -160px;
-        }
-
-        .brand {
-            position: relative;
-            z-index: 1;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 0 20px 18px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.16);
-        }
-
-        .brand-icon {
-            font-size: 1.8rem;
-        }
-
-        .brand-name {
-            font-weight: 800;
-            letter-spacing: 0.6px;
-            font-size: 1.55rem;
-        }
-
-        .menu {
-            position: relative;
-            z-index: 1;
-            margin-top: 18px;
-        }
-
-        .menu-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 22px;
-            color: rgba(244, 255, 245, 0.92);
-            text-decoration: none;
-            font-weight: 500;
-            transition: background 0.2s ease;
-        }
-
-        .menu-item:hover,
-        .menu-item.active {
-            color: #ffffff;
-            background: rgba(24, 56, 18, 0.26);
-        }
-
-        .menu-item i {
-            width: 22px;
-            text-align: center;
-        }
-
-        .sidebar-user {
-            position: absolute;
-            z-index: 1;
-            left: 20px;
-            right: 20px;
-            bottom: 16px;
-            padding-top: 14px;
-            border-top: 1px solid rgba(255, 255, 255, 0.2);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            color: rgba(255, 255, 255, 0.95);
-        }
-
-        .user-meta {
-            min-width: 0;
-            flex: 1;
-        }
-
-        .avatar {
-            width: 44px;
-            height: 44px;
-            border-radius: 50%;
-            background: #d9f4cc;
-            color: var(--brand-3);
-            display: grid;
-            place-items: center;
-            font-size: 1.2rem;
-        }
-
-        .user-name {
-            font-size: 0.87rem;
-            font-weight: 600;
-            line-height: 1.2;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .user-action {
-            display: inline-block;
-            font-size: 0.78rem;
-            color: #d8f8cd;
-            text-decoration: none;
-        }
-
-        .main {
-            padding: 0;
-        }
-
-        .topbar {
-            height: 72px;
-            background: #f3f5f8;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 24px;
-        }
-
-        .search-wrap {
-            position: relative;
-            width: min(560px, 65%);
-        }
-
-        .search-wrap i {
-            position: absolute;
-            left: 14px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #8a94a8;
-            font-size: 0.95rem;
-        }
-
-        .search-wrap input {
-            width: 100%;
-            border: 1px solid #d7dce6;
-            background: #ffffff;
-            border-radius: 9px;
-            height: 42px;
-            padding: 0 14px 0 38px;
-            outline: none;
-            color: var(--text-1);
-            font-size: 0.9rem;
-        }
-
-        .top-user {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            color: #65708a;
-            font-weight: 500;
-            font-size: 0.9rem;
-        }
-
-        .top-user .avatar {
-            width: 38px;
-            height: 38px;
-            background: #c9e7bc;
-            font-size: 1rem;
-        }
-
-        .content {
-            padding: 18px 24px 24px;
-        }
-
         .stats {
             display: grid;
             grid-template-columns: repeat(4, minmax(170px, 1fr));
             gap: 12px;
-        }
-
-        .stat-card {
-            border-radius: 8px;
-            color: #fff;
-            padding: 14px 16px;
-            box-shadow: 0 10px 24px rgba(36, 47, 74, 0.12);
-            min-height: 86px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .stat-danger {
-            background: linear-gradient(135deg, #ed4b44 0%, #de332e 100%);
-        }
-
-        .stat-warning {
-            background: linear-gradient(135deg, #f6c843 0%, #efb515 100%);
-            color: #6f4c0e;
-        }
-
-        .stat-safe {
-            background: linear-gradient(135deg, #86d36a 0%, #6ac152 100%);
-        }
-
-        .stat-rain {
-            background: linear-gradient(135deg, #66b3cf 0%, #4a98b8 100%);
-        }
-
-        .stat-value {
-            font-size: 2rem;
-            line-height: 1;
-            font-weight: 800;
-        }
-
-        .stat-label {
-            font-size: 0.95rem;
-            font-weight: 600;
-            margin-top: 2px;
         }
 
         .panel {
@@ -342,7 +77,7 @@
             position: absolute;
             right: 16px;
             top: 16px;
-            width: min(330px, calc(100% - 32px));
+            width: min(350px, calc(100% - 32px));
             background: rgba(255, 255, 255, 0.98);
             border-radius: 12px;
             border: 1px solid #ebedf2;
@@ -359,9 +94,9 @@
         }
 
         .info-title {
-            font-size: 1.9rem;
+            font-size: 1.5rem;
             margin: 0;
-            line-height: 1;
+            line-height: 1.1;
             font-weight: 800;
         }
 
@@ -378,22 +113,14 @@
             text-transform: capitalize;
         }
 
-        .badge-alto {
-            background: #ef4444;
-        }
-
-        .badge-medio {
-            background: #f59e0b;
-        }
-
-        .badge-baixo {
-            background: #22c55e;
-        }
+        .badge-alto { background: #ef4444; }
+        .badge-medio { background: #f59e0b; }
+        .badge-baixo { background: #22c55e; }
 
         .info-coords {
             color: #75809a;
             font-size: 0.88rem;
-            margin: 10px 0 12px;
+            margin: 10px 0 4px;
         }
 
         .info-section {
@@ -418,17 +145,9 @@
             margin-top: 5px;
         }
 
-        .meta-line i.alto {
-            color: #ef4444;
-        }
-
-        .meta-line i.medio {
-            color: #f59e0b;
-        }
-
-        .meta-line i.baixo {
-            color: #22c55e;
-        }
+        .meta-line i.alto { color: #ef4444; }
+        .meta-line i.medio { color: #f59e0b; }
+        .meta-line i.baixo { color: #22c55e; }
 
         .history-item {
             margin-top: 7px;
@@ -441,222 +160,251 @@
             margin-right: 6px;
         }
 
-        .btn-detail {
-            width: 100%;
-            margin-top: 14px;
+        .info-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px solid #ebedf2;
+        }
+
+        .info-actions .btn-detail,
+        .info-actions .btn-delete {
+            flex: 1;
             border: none;
-            border-radius: 8px;
-            min-height: 40px;
+            border-radius: 10px;
+            min-height: 44px;
             font-weight: 700;
+            font-size: 0.9rem;
             color: #fff;
+            cursor: pointer;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .info-actions .btn-detail {
             background: linear-gradient(145deg, #7cd065 0%, #57ab45 100%);
+            box-shadow: 0 4px 12px rgba(87, 171, 69, 0.35);
+            text-decoration: none;
+        }
+
+        .info-actions .btn-delete {
+            background: linear-gradient(145deg, #ef4444 0%, #dc2626 100%);
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35);
+        }
+
+        .info-actions .btn-detail:hover,
+        .info-actions .btn-delete:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
         }
 
         @media (max-width: 1200px) {
-            .stats {
-                grid-template-columns: repeat(2, minmax(170px, 1fr));
-            }
-
-            .filters {
-                grid-template-columns: repeat(3, minmax(160px, 1fr));
-                align-items: stretch;
-            }
-
-            .check {
-                min-height: 40px;
-            }
-        }
-
-        @media (max-width: 980px) {
-            .layout {
-                grid-template-columns: 1fr;
-            }
-
-            .sidebar {
-                position: static;
-                min-height: auto;
-                padding-bottom: 96px;
-            }
-
-            .main {
-                min-height: 100vh;
-            }
-
-            .topbar {
-                flex-wrap: wrap;
-                height: auto;
-                gap: 10px;
-                padding: 12px 16px;
-            }
-
-            .search-wrap {
-                width: 100%;
-            }
+            .stats { grid-template-columns: repeat(2, minmax(170px, 1fr)); }
+            .filters { grid-template-columns: repeat(3, minmax(160px, 1fr)); align-items: stretch; }
+            .check { min-height: 40px; }
         }
 
         @media (max-width: 680px) {
-            .content {
-                padding: 14px;
-            }
-
-            .stats {
-                grid-template-columns: 1fr;
-            }
-
-            .filters {
-                grid-template-columns: 1fr;
-            }
-
-            .info-card {
-                position: static;
-                width: calc(100% - 24px);
-                margin: 12px;
-            }
+            .stats { grid-template-columns: 1fr; }
+            .filters { grid-template-columns: 1fr; }
+            .info-card { position: static; width: calc(100% - 24px); margin: 12px; }
+            .info-actions { flex-direction: column; }
+            .info-actions .btn-detail,
+            .info-actions .btn-delete { width: 100%; }
         }
     </style>
-</head>
-<body>
-    <div class="layout">
-        <aside class="sidebar">
-            <div class="brand">
-                <i class="fa-solid fa-shield-heart brand-icon"></i>
-                <span class="brand-name">MAPRISCO</span>
+{% endblock %}
+
+{% block content %}
+<section class="content">
+    <div class="stats">
+        <div class="stat-card danger">
+            <div>
+                <div class="stat-value" id="total-criticas">0</div>
+                <div class="stat-label">Areas Criticas</div>
             </div>
-
-            <nav class="menu">
-                <a class="menu-item active" href="/">
-                    <i class="fa-solid fa-location-dot"></i>Mapa
-                </a>
-                <a class="menu-item" href="/dashboard/">
-                    <i class="fa-solid fa-chart-column"></i>Dashboard
-                </a>
-                <a class="menu-item" href="#">
-                    <i class="fa-solid fa-bell"></i>Alertas
-                </a>
-                <a class="menu-item" href="#">
-                    <i class="fa-solid fa-triangle-exclamation"></i>Areas de risco
-                </a>
-                <a class="menu-item" href="#">
-                    <i class="fa-solid fa-seedling"></i>Monitoramento
-                </a>
-                <a class="menu-item" href="#">
-                    <i class="fa-solid fa-gear"></i>Usuarios
-                </a>
-            </nav>
-
-            <div class="sidebar-user">
-                <div class="avatar"><i class="fa-solid fa-user"></i></div>
-                <div class="user-meta">
-                    <div class="user-name">{% if user.is_authenticated %}{{ user.username|truncatechars:26 }}{% else %}visitante{% endif %}</div>
-                    {% if user.is_authenticated %}
-                    <a class="user-action" href="{% url 'logout' %}">Logout</a>
-                    {% else %}
-                    <a class="user-action" href="{% url 'login' %}">Login</a>
-                    {% endif %}
-                </div>
+            <i class="fa-solid fa-triangle-exclamation fa-xl"></i>
+        </div>
+        <div class="stat-card warning">
+            <div>
+                <div class="stat-value" id="total-alerta">0</div>
+                <div class="stat-label">Areas em Alerta</div>
             </div>
-        </aside>
-
-        <main class="main">
-            <header class="topbar">
-                <div class="search-wrap">
-                    <i class="fa-solid fa-magnifying-glass"></i>
-                    <input type="text" placeholder="Pesquise na Mapa...">
-                </div>
-                <div class="top-user">
-                    <span>Ola</span>
-                    <div class="avatar"><i class="fa-solid fa-user"></i></div>
-                </div>
-            </header>
-
-            <section class="content">
-                <div class="stats">
-                    <div class="stat-card stat-danger">
-                        <div>
-                            <div class="stat-value" id="total-criticas">0</div>
-                            <div class="stat-label">Areas Criticas</div>
-                        </div>
-                        <i class="fa-solid fa-triangle-exclamation fa-xl"></i>
-                    </div>
-                    <div class="stat-card stat-warning">
-                        <div>
-                            <div class="stat-value" id="total-alerta">0</div>
-                            <div class="stat-label">Areas em Alerta</div>
-                        </div>
-                        <i class="fa-solid fa-bell fa-xl"></i>
-                    </div>
-                    <div class="stat-card stat-safe">
-                        <div>
-                            <div class="stat-value" id="total-seguras">0</div>
-                            <div class="stat-label">Areas Seguras</div>
-                        </div>
-                        <i class="fa-solid fa-check fa-xl"></i>
-                    </div>
-                    <div class="stat-card stat-rain">
-                        <div>
-                            <div class="stat-value" id="rain-level">-- mm</div>
-                            <div class="stat-label">Nivel de Chuva</div>
-                            <small id="rain-updated" style="opacity:0.9; font-weight:600;">Atualizando...</small>
-                        </div>
-                        <i class="fa-solid fa-cloud-rain fa-xl" id="rain-icon"></i>
-                    </div>
-                </div>
-
-                <div class="panel">
-                    <div class="filters">
-                        <label class="check"><input id="showCritical" type="checkbox"> Mostrar apenas areas criticas</label>
-                        <label class="check"><input id="showAlerts" type="checkbox"> Mostrar areas em alerta</label>
-                        <select class="form-field" id="bairroSelect">
-                            <option value="">Filtrar por bairro</option>
-                        </select>
-                        <input class="form-field" id="searchArea" type="text" placeholder="Buscar area...">
-                        <button class="btn-filter" id="applyFilter" type="button">Filtrar</button>
-                    </div>
-                </div>
-
-                <div class="map-wrap">
-                    <div id="map"></div>
-                    <article class="info-card" id="infoCard">
-                        <div class="info-head">
-                            <div>
-                                <h3 class="info-title" id="infoTitle">Rio Palmares</h3>
-                                <span class="info-badge badge-alto" id="infoBadge"><i class="fa-solid fa-location-dot"></i> Critico</span>
-                            </div>
-                            <button class="btn btn-sm text-secondary" id="closeInfo" aria-label="Fechar">
-                                <i class="fa-solid fa-xmark"></i>
-                            </button>
-                        </div>
-                        <div class="info-coords" id="infoCoords">-6.0815, -50.5532</div>
-
-                        <div class="info-section">
-                            <h4>Ultimas Medicoes</h4>
-                            <div class="meta-line"><i class="fa-regular fa-circle-dot alto"></i> Nivel de agua: <strong id="infoNivel">90 cm</strong></div>
-                            <div class="meta-line"><i class="fa-regular fa-circle-dot medio"></i> Situacao: <strong id="infoSituacao">Critico</strong></div>
-                        </div>
-
-                        <div class="info-section">
-                            <h4>Historico</h4>
-                            <div class="history-item"><i class="fa-solid fa-circle"></i>23/04/2024 14:25 - Alerta gerado (90 cm)</div>
-                            <div class="history-item"><i class="fa-solid fa-circle"></i>22/04/2024 12:10 - Agua em nivel critico (89 cm)</div>
-                        </div>
-
-                        <button class="btn-detail" type="button">Ver detalhes</button>
-                    </article>
-                </div>
-            </section>
-        </main>
+            <i class="fa-solid fa-bell fa-xl"></i>
+        </div>
+        <div class="stat-card safe">
+            <div>
+                <div class="stat-value" id="total-seguras">0</div>
+                <div class="stat-label">Areas Seguras</div>
+            </div>
+            <i class="fa-solid fa-check fa-xl"></i>
+        </div>
+        <div class="stat-card info">
+            <div>
+                <div class="stat-value" id="rain-level">-- mm</div>
+                <div class="stat-label">Nivel de Chuva</div>
+                <small id="rain-updated" style="opacity:0.9; font-weight:600;">Atualizando...</small>
+            </div>
+            <i class="fa-solid fa-cloud-rain fa-xl" id="rain-icon"></i>
+        </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <div class="panel">
+        <div class="filters">
+            <label class="check"><input id="showCritical" type="checkbox"> Mostrar apenas areas criticas</label>
+            <label class="check"><input id="showAlerts" type="checkbox"> Mostrar areas em alerta</label>
+            <select class="form-field" id="bairroSelect">
+                <option value="">Filtrar por bairro</option>
+            </select>
+            <input class="form-field" id="searchArea" type="text" placeholder="Buscar area...">
+            <button class="btn-filter" id="applyFilter" type="button">Filtrar</button>
+        </div>
+    </div>
+
+    <div class="map-wrap">
+        <div id="map"></div>
+        <article class="info-card" id="infoCard" style="display:none;">
+            <div class="info-head">
+                <div>
+                    <h3 class="info-title" id="infoTitle">Area de Risco</h3>
+                    <span class="info-badge badge-alto" id="infoBadge"><i class="fa-solid fa-location-dot"></i> Critico</span>
+                </div>
+                <button class="btn btn-sm text-secondary" id="closeInfo" aria-label="Fechar">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="info-coords" id="infoCoords">-</div>
+            <div style="color:#75809a; font-size:0.88rem; margin:4px 0 12px;"><i class="fa-solid fa-city"></i> <span id="infoCityName">Parauapebas</span></div>
+
+            <div class="info-section">
+                <h4>Ultimas Medicoes</h4>
+                <div class="meta-line"><i class="fa-regular fa-circle-dot alto"></i> Nivel de Risco: <strong id="infoNivel">---</strong></div>
+                <div class="meta-line"><i class="fa-regular fa-circle-dot medio"></i> Situacao: <strong id="infoSituacao">---</strong></div>
+            </div>
+
+            <div class="info-section" id="infoFotoSection" style="display:none;">
+                <h4>Foto da Area</h4>
+                <img id="infoFoto" src="" alt="Foto da area" style="max-width:100%; height:auto; border-radius:8px; margin-top:8px;">
+            </div>
+
+            <div class="info-actions">
+                <a class="btn-detail" href="/monitoramento/"><i class="fa-solid fa-eye"></i> Registrar medicao</a>
+                {% if user.is_authenticated %}
+                <button class="btn-delete" id="deleteArea" type="button"><i class="fa-solid fa-trash"></i> Apagar area</button>
+                {% endif %}
+            </div>
+        </article>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        const map = L.map('map', { zoomControl: true }).setView([-6.064, -49.9011], 12);
+        const map = L.map('map', { 
+    zoomControl: true,
+    maxZoom: 19,           // limite global do mapa
+    minZoom: 3
+}).setView([{{ MAP_CENTER_LAT }}, {{ MAP_CENTER_LNG }}], {{ MAP_DEFAULT_ZOOM }});
 
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+        // Camada base: IBGE (dados oficiais do Brasil) - maxZoom 18
+        const ibgeLayer = L.tileLayer('https://tiles.geo.ibge.gov.br/ibge/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.ibge.gov.br/" target="_blank">IBGE</a>',
+            maxZoom: 18,
+            minZoom: 3
+        });
+
+        // Camada alternativa: Satelite (Esri World Imagery) - maxZoom 19
+        const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: '&copy; <a href="https://www.esri.com/" target="_blank">Esri</a> &mdash; Source: Esri, Maxar, Earthstar Geographics',
+            maxZoom: 19,
+            minZoom: 3
+        });
+
+        // Camada alternativa: OpenStreetMap (CartoDB Light) - maxZoom 19
+        const osmLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/" target="_blank">OpenStreetMap</a> &copy; <a href="https://carto.com/" target="_blank">CARTO</a>',
             subdomains: 'abcd',
-            maxZoom: 19
-        }).addTo(map);
+            maxZoom: 19,
+            minZoom: 3
+        });
+
+        // Adiciona OpenStreetMap (CartoDB Light) como padrao - com rotulos de cidades/estados
+        osmLayer.addTo(map);
+
+        // Controle de camadas (canto superior direito)
+        const baseMaps = {
+            'Ruas (nomes visiveis)': osmLayer,
+            'IBGE (Oficial, sem rotulos)': ibgeLayer,
+            'Satelite (zoom ate 19)': satelliteLayer
+        };
+        L.control.layers(baseMaps, null, { position: 'topright', collapsed: false }).addTo(map);
+
+        // Forca recalculo do tamanho do mapa apos inicializacao
+        setTimeout(() => map.invalidateSize(), 100);
+
+        // Debug: verifica se o mapa foi criado corretamente
+        setTimeout(() => {
+            const size = map.getSize();
+            console.log('Map size:', size.x, 'x', size.y);
+            console.log('Map container:', document.getElementById('map').offsetWidth, 'x', document.getElementById('map').offsetHeight);
+        }, 200);
+
+        // Fallback automatico: se passar do zoom 18 no IBGE, avisa o usuario
+        map.on('zoomend', function() {
+            const currentZoom = map.getZoom();
+            const isIbgeActive = map.hasLayer(ibgeLayer);
+            
+            if (isIbgeActive && currentZoom > 18) {
+                // Remove aviso anterior se existir
+                if (window._zoomWarning) {
+                    map.removeControl(window._zoomWarning);
+                }
+                // Mostra aviso temporario
+                window._zoomWarning = L.control({ position: 'bottomleft' });
+                window._zoomWarning.onAdd = function() {
+                    const div = L.DomUtil.create('div', 'alert alert-warning p-2 m-2');
+                    div.style.background = 'rgba(255,243,224,0.95)';
+                    div.style.border = '1px solid #f59e0b';
+                    div.style.borderRadius = '8px';
+                    div.style.fontSize = '0.85rem';
+                    div.style.maxWidth = '280px';
+                    div.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-1"></i>IBGE so vai ate zoom 18. <b>Troque para Satelite ou OSM</b> no painel a direita para aproximar mais.';
+                    return div;
+                };
+                window._zoomWarning.addTo(map);
+                
+                // Remove apos 8 segundos
+                setTimeout(() => {
+                    if (window._zoomWarning) {
+                        map.removeControl(window._zoomWarning);
+                        window._zoomWarning = null;
+                    }
+                }, 8000);
+            } else if (window._zoomWarning && currentZoom <= 18) {
+                map.removeControl(window._zoomWarning);
+                window._zoomWarning = null;
+            }
+        });
+
+        // Ajusta limite de zoom conforme camada ativa
+        map.on('baselayerchange', function(e) {
+            if (e.layer === ibgeLayer) {
+                map.setMaxZoom(18);
+                if (map.getZoom() > 18) map.setZoom(18);
+            } else {
+                map.setMaxZoom(19);
+            }
+            // remove aviso ao trocar de camada
+            if (window._zoomWarning) {
+                map.removeControl(window._zoomWarning);
+                window._zoomWarning = null;
+            }
+        });
 
         const infoCard = document.getElementById('infoCard');
         const infoTitle = document.getElementById('infoTitle');
@@ -667,18 +415,29 @@
         const rainLevel = document.getElementById('rain-level');
         const rainUpdated = document.getElementById('rain-updated');
         const rainIcon = document.getElementById('rain-icon');
+        const searchArea = document.getElementById('searchArea');
 
+        let currentArea = null;
         const markers = [];
         let allAreas = [];
 
         const riskConfig = {
             baixo: { color: '#22c55e', label: 'Seguro', badge: 'badge-baixo' },
             medio: { color: '#f59e0b', label: 'Alerta', badge: 'badge-medio' },
-            alto: { color: '#ef4444', label: 'Critico', badge: 'badge-alto' }
+            alto: { color: '#ef4444', label: 'Critico', badge: 'badge-alto' },
+            critico: { color: '#b91c1c', label: 'Critico', badge: 'badge-alto' }
         };
 
+        function parseApiList(payload) {
+            if (Array.isArray(payload)) return payload;
+            if (payload && Array.isArray(payload.results)) return payload.results;
+            return [];
+        }
+
         function normalizeRisk(value) {
-            return (value || '').toLowerCase().trim();
+            const v = (value || '').toLowerCase().trim();
+            if (v === 'critico') return 'critico';
+            return v;
         }
 
         function clearMarkers() {
@@ -690,56 +449,77 @@
             const counts = { alto: 0, medio: 0, baixo: 0 };
             areas.forEach((area) => {
                 const risk = normalizeRisk(area.nivel_risco);
-                if (counts[risk] !== undefined) {
-                    counts[risk] += 1;
-                }
+                if (counts[risk] !== undefined) counts[risk] += 1;
             });
-
             document.getElementById('total-criticas').textContent = counts.alto;
             document.getElementById('total-alerta').textContent = counts.medio;
             document.getElementById('total-seguras').textContent = counts.baixo;
         }
 
         function updateDetailCard(area) {
-            if (!area) {
-                return;
-            }
-
+            if (!area) return;
+            currentArea = area;
             const risk = normalizeRisk(area.nivel_risco);
             const config = riskConfig[risk] || riskConfig.medio;
-            const coordLat = Number(area.latitude || 0).toFixed(4);
-            const coordLng = Number(area.longitude || 0).toFixed(4);
+
+            const lat = area.latitude;
+            const lng = area.longitude;
+            const hasCoords = lat !== null && lat !== undefined && lat !== '' &&
+                              lng !== null && lng !== undefined && lng !== '';
+
+            if (hasCoords) {
+                const coordLat = Number(lat).toFixed(4);
+                const coordLng = Number(lng).toFixed(4);
+                infoCoords.textContent = `${coordLat}, ${coordLng}`;
+            } else {
+                infoCoords.textContent = 'Localizacao nao informada';
+            }
 
             infoTitle.textContent = area.nome || 'Area sem nome';
-            infoCoords.textContent = `${coordLat}, ${coordLng}`;
-            infoNivel.textContent = area.nivel_agua ? `${area.nivel_agua} cm` : '90 cm';
+            infoNivel.textContent = area.nivel_risco ? `${area.nivel_risco}`.charAt(0).toUpperCase() + `${area.nivel_risco}`.slice(1) : '---';
             infoSituacao.textContent = config.label;
 
             infoBadge.className = `info-badge ${config.badge}`;
             infoBadge.innerHTML = `<i class="fa-solid fa-location-dot"></i> ${config.label}`;
+
+            const fotoSection = document.getElementById('infoFotoSection');
+            const fotoImg = document.getElementById('infoFoto');
+            if (area.foto) {
+                fotoImg.src = area.foto;
+                fotoSection.style.display = 'block';
+            } else {
+                fotoSection.style.display = 'none';
+            }
+
+            const cityName = document.getElementById('infoCityName');
+            if (cityName) cityName.textContent = area.cidade || 'Parauapebas';
+
             infoCard.style.display = 'block';
         }
 
-        function renderAreas(areas) {
+function renderAreas(areas) {
             clearMarkers();
             updateStats(areas);
-
-            if (!areas.length) {
-                return;
-            }
+            if (!areas.length) return;
 
             const bounds = [];
-
             areas.forEach((area) => {
                 const risk = normalizeRisk(area.nivel_risco);
                 const config = riskConfig[risk] || riskConfig.medio;
-                const lat = Number(area.latitude);
-                const lng = Number(area.longitude);
 
-                if (Number.isNaN(lat) || Number.isNaN(lng)) {
+                const latRaw = area.latitude;
+                const lngRaw = area.longitude;
+
+                // Skip areas without valid coordinates
+                if (latRaw === null || latRaw === undefined || latRaw === '' ||
+                    lngRaw === null || lngRaw === undefined || lngRaw === '') {
                     return;
                 }
 
+                const lat = Number(latRaw);
+                const lng = Number(lngRaw);
+
+                if (Number.isNaN(lat) || Number.isNaN(lng)) return;
                 bounds.push([lat, lng]);
 
                 const marker = L.circleMarker([lat, lng], {
@@ -750,7 +530,10 @@
                     weight: 2
                 }).addTo(map);
 
-                marker.bindPopup(`<strong>${area.nome || 'Area sem nome'}</strong><br>Nivel: ${config.label}`);
+                const nomeSeguro = (area.nome || 'Area sem nome').replace(/[&<>"']/g, function(m) {
+    return {'&':'&','<':'<','>':'>','"':'"',"'":"&#39;"}[m];
+});
+                marker.bindPopup(`<strong>${nomeSeguro}</strong><br>Nivel: ${config.label}`);
                 marker.on('click', () => updateDetailCard(area));
                 markers.push(marker);
             });
@@ -766,11 +549,8 @@
             const bairros = new Set();
             areas.forEach((area) => {
                 const bairro = (area.bairro || '').trim();
-                if (bairro) {
-                    bairros.add(bairro);
-                }
+                if (bairro) bairros.add(bairro);
             });
-
             Array.from(bairros).sort().forEach((bairro) => {
                 const option = document.createElement('option');
                 option.value = bairro;
@@ -783,71 +563,68 @@
             const onlyCritical = document.getElementById('showCritical').checked;
             const onlyAlerts = document.getElementById('showAlerts').checked;
             const bairro = document.getElementById('bairroSelect').value;
-            const term = document.getElementById('searchArea').value.trim().toLowerCase();
+            const term = searchArea.value.trim().toLowerCase();
 
             const filtered = allAreas.filter((area) => {
                 const risk = normalizeRisk(area.nivel_risco);
                 const byRisk = !onlyCritical || risk === 'alto';
                 const byAlert = !onlyAlerts || risk === 'medio';
                 const byBairro = !bairro || (area.bairro || '').toLowerCase() === bairro.toLowerCase();
-                const byTerm = !term || (area.nome || '').toLowerCase().includes(term);
+                const byTerm = !term || (area.nome || '').toLowerCase().includes(term) ||
+                    (area.bairro || '').toLowerCase().includes(term) ||
+                    (area.cidade || '').toLowerCase().includes(term);
                 return byRisk && byAlert && byBairro && byTerm;
             });
-
             renderAreas(filtered);
         }
 
         function formatUpdatedAt() {
-            return new Date().toLocaleTimeString('pt-BR', {
-                hour: '2-digit',
-                minute: '2-digit'
-            });
+            return new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
         }
 
         function setRainVisual(rainMm) {
             rainIcon.className = 'fa-solid fa-cloud-rain fa-xl';
-            if (rainMm <= 0) {
-                rainIcon.className = 'fa-solid fa-cloud fa-xl';
-            }
-            if (rainMm >= 8) {
-                rainIcon.className = 'fa-solid fa-cloud-showers-heavy fa-xl';
-            }
+            if (rainMm <= 0) rainIcon.className = 'fa-solid fa-cloud fa-xl';
+            if (rainMm >= 8) rainIcon.className = 'fa-solid fa-cloud-showers-heavy fa-xl';
         }
+
+        let lastRain = null;
 
         async function loadWeatherInRealtime() {
             const lat = -6.0686;
             const lng = -49.9037;
             const endpoint = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=rain&timezone=auto`;
-
             try {
-                const response = await fetch(endpoint, { cache: 'no-store' });
-                if (!response.ok) {
-                    throw new Error('Falha ao consultar clima.');
-                }
-
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+                const response = await fetch(endpoint, { cache: 'no-store', signal: controller.signal });
+                clearTimeout(timeoutId);
+                if (!response.ok) throw new Error('Falha ao consultar clima.');
                 const data = await response.json();
                 const rainMm = Number(data?.current?.rain ?? 0);
                 const safeRain = Number.isFinite(rainMm) ? rainMm : 0;
-
+                lastRain = safeRain;
                 rainLevel.textContent = `${safeRain.toFixed(1)} mm`;
                 rainUpdated.textContent = `Atualizado ${formatUpdatedAt()}`;
                 setRainVisual(safeRain);
             } catch (error) {
                 console.error(error);
-                rainLevel.textContent = '-- mm';
-                rainUpdated.textContent = 'Sem dados no momento';
-                rainIcon.className = 'fa-solid fa-cloud fa-xl';
+                // Mantem a ultima medicao conhecida se uma atualizacao falhar.
+                if (lastRain === null) {
+                    rainLevel.textContent = '-- mm';
+                    rainUpdated.textContent = 'Sem dados no momento';
+                    rainIcon.className = 'fa-solid fa-cloud fa-xl';
+                } else {
+                    rainUpdated.textContent = `Ultima atualizacao ${formatUpdatedAt()} (sem internet)`;
+                }
             }
         }
 
         async function loadAreas() {
             try {
                 const response = await fetch('/api/areas/');
-                if (!response.ok) {
-                    throw new Error('Falha ao consultar a API de areas.');
-                }
-
-                allAreas = await response.json();
+                if (!response.ok) throw new Error('Falha ao consultar a API de areas.');
+                allAreas = parseApiList(await response.json());
                 populateBairroFilter(allAreas);
                 renderAreas(allAreas);
             } catch (error) {
@@ -856,16 +633,56 @@
             }
         }
 
+        function getCookie(name) {
+            const cookieValue = document.cookie
+                .split('; ')
+                .find((row) => row.startsWith(name + '='));
+            return cookieValue ? decodeURIComponent(cookieValue.split('=')[1]) : '';
+        }
+
         document.getElementById('applyFilter').addEventListener('click', applyFilters);
+        document.getElementById('showCritical').addEventListener('change', applyFilters);
+        document.getElementById('showAlerts').addEventListener('change', applyFilters);
+        document.getElementById('bairroSelect').addEventListener('change', applyFilters);
+        searchArea.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') applyFilters();
+        });
         document.getElementById('closeInfo').addEventListener('click', () => {
             infoCard.style.display = 'none';
+            currentArea = null;
+        });
+
+        const deleteAreaBtn = document.getElementById('deleteArea');
+        if (deleteAreaBtn) deleteAreaBtn.addEventListener('click', async () => {
+            if (!currentArea || !currentArea.id) return;
+            if (!confirm('Tem certeza que deseja apagar esta area de risco?')) return;
+            try {
+                const response = await fetch(`/api/areas/${currentArea.id}/`, {
+                    method: 'DELETE',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRFToken': getCookie('csrftoken') }
+                });
+                if (!response.ok) throw new Error('Falha ao apagar area.');
+                infoCard.style.display = 'none';
+                allAreas = allAreas.filter((a) => a.id !== currentArea.id);
+                renderAreas(allAreas);
+            } catch (error) {
+                console.error(error);
+                alert('Nao foi possivel apagar a area.');
+            }
         });
 
         document.addEventListener('DOMContentLoaded', () => {
             loadAreas();
             loadWeatherInRealtime();
             setInterval(loadWeatherInRealtime, 60 * 1000);
+
+            const params = new URLSearchParams(window.location.search);
+            const q = params.get('q');
+            if (q) {
+                searchArea.value = q;
+                applyFilters();
+            }
         });
     </script>
-</body>
-</html>
+{% endblock %}

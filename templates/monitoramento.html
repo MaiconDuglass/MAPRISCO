@@ -1,0 +1,325 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Monitoramento - MapRisco{% endblock %}
+{% block extra_css %}
+    <style>
+        .monitor-grid {
+            display: grid;
+            grid-template-columns: 340px 1fr;
+            gap: 14px;
+            margin-top: 14px;
+            align-items: start;
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+            box-shadow: 0 8px 24px rgba(22, 29, 44, 0.08);
+        }
+
+        .panel h3 {
+            margin: 0 0 12px;
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--brand-3);
+        }
+
+        .panel p {
+            margin: 0 0 14px;
+            color: var(--text-2);
+            font-size: 0.85rem;
+        }
+
+        .field {
+            display: grid;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+
+        .field label {
+            color: #4a5266;
+            font-weight: 500;
+            font-size: 0.92rem;
+        }
+
+        .field .required::after {
+            content: ' *';
+            color: #df3f3f;
+        }
+
+        .field input,
+        .field select {
+            width: 100%;
+            border-radius: 7px;
+            border: 1px solid #d6dbe8;
+            min-height: 40px;
+            padding: 8px 10px;
+            font-size: 0.92rem;
+            color: #434c61;
+            outline: none;
+            background: #fff;
+        }
+
+        .btn-primary {
+            border: none;
+            border-radius: 8px;
+            min-height: 42px;
+            width: 100%;
+            font-weight: 700;
+            color: #fff;
+            background: linear-gradient(145deg, #74c95e 0%, #57aa45 100%);
+            cursor: pointer;
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .form-message {
+            margin-top: 10px;
+            font-size: 0.85rem;
+            color: #ca2f2f;
+        }
+
+        .form-message.success { color: #2c9a48; }
+
+        .info-box {
+            margin-top: 14px;
+            font-size: 0.85rem;
+            color: var(--text-2);
+            background: #f5f8f6;
+            border: 1px dashed var(--border);
+            border-radius: 8px;
+            padding: 10px 12px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.82rem;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 8px;
+            text-align: left;
+        }
+
+        thead { background: #f4f6fb; color: #697289; }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-weight: 600;
+        }
+
+        .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+        .dot.alto { background: var(--danger); }
+        .dot.medio { background: var(--warning); }
+        .dot.baixo { background: var(--success); }
+
+        .txt-alto { color: var(--danger); }
+        .txt-medio { color: #c68c12; }
+        .txt-baixo { color: #2d9a4a; }
+
+        .loading { color: var(--text-2); padding: 12px; font-size: 0.82rem; }
+
+        @media (max-width: 980px) {
+            .monitor-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<section class="content">
+    <div style="text-align:center; margin-bottom:12px;">
+        <h1 style="margin:0; font-size:2rem; font-weight:700;">Registro de Monitoramento</h1>
+        <p style="margin:3px 0 0; color:var(--text-2); font-size:0.88rem;">Cadastre o nível de água e acompanhe o histórico automático</p>
+    </div>
+
+    <div class="monitor-grid">
+        <div class="panel">
+            <h3>Nova Medição</h3>
+            <p>O status é classificado automaticamente: acima de 80 cm = Crítico, acima de 50 cm = Alerta.</p>
+            {% if user.is_authenticated %}
+            <form id="medicaoForm">
+                <div class="field">
+                    <label class="required">Área de Risco</label>
+                    <select id="medicaoArea" name="area" required>
+                        <option value="">Selecione...</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label class="required">Nível de Água (cm)</label>
+                    <input type="number" id="medicaoNivel" name="nivel_agua" step="0.01" min="0" placeholder="Ex.: 85.5" required>
+                </div>
+                <button type="submit" class="btn-primary" id="saveMedicaoBtn">Registrar medição</button>
+                <div id="medicaoFormMessage" class="form-message"></div>
+            </form>
+            {% else %}
+            <p class="info-box"><i class="fa-solid fa-circle-info"></i> Você precisa <a href="{% url 'login' %}">fazer login</a> para registrar medições.</p>
+            {% endif %}
+            <div class="info-box">
+                <i class="fa-solid fa-circle-info"></i> Ao registrar um nível crítico (≥ 80 cm), um alerta de alta prioridade é gerado automaticamente.
+            </div>
+        </div>
+
+        <div class="panel">
+            <h3>Últimos Registros</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data e Hora</th>
+                        <th>Área</th>
+                        <th>Nível de Água</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="registros-body">
+                    <tr><td colspan="4" class="loading">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        const medicaoForm = document.getElementById('medicaoForm');
+        const medicaoArea = document.getElementById('medicaoArea');
+        const medicaoFormMessage = document.getElementById('medicaoFormMessage');
+        const saveMedicaoBtn = document.getElementById('saveMedicaoBtn');
+        let areasMap = {};
+
+        function parseApiList(payload) {
+            if (Array.isArray(payload)) return payload;
+            if (payload && Array.isArray(payload.results)) return payload.results;
+            return [];
+        }
+
+        function getCookie(name) {
+            const cookieValue = document.cookie
+                .split('; ')
+                .find((row) => row.startsWith(name + '='));
+            return cookieValue ? decodeURIComponent(cookieValue.split('=')[1]) : '';
+        }
+
+        function fmtDate(value) {
+            if (!value) return '-';
+            const dt = new Date(value);
+            if (Number.isNaN(dt.getTime())) return '-';
+            return dt.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function esc(text) {
+            return String(text || '').replace(/[&<>"']/g, function(m) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]; });
+        }
+
+        function riskClass(value) {
+            const v = (value || '').toString().toLowerCase();
+            if (v === 'critico' || v === 'alto' || v.includes('critic')) return 'alto';
+            if (v === 'alerta' || v === 'medio' || v.includes('alert')) return 'medio';
+            return 'baixo';
+        }
+
+        function riskBadgeText(risk) {
+            if (risk === 'alto') return 'Crítico';
+            if (risk === 'medio') return 'Alerta';
+            return 'Normal';
+        }
+
+        function buildBadge(risk) {
+            const label = riskBadgeText(risk);
+            return `<span class="badge txt-${risk}"><span class="dot ${risk}"></span>${label}</span>`;
+        }
+
+        function areaName(record) {
+            if (record.area_nome) return record.area_nome;
+            if (record.area && areasMap[record.area]) return areasMap[record.area].nome;
+            return record.area ? `Área ${record.area}` : 'Sem área';
+        }
+
+        async function loadAreas() {
+            try {
+                const response = await fetch('/api/areas/', { credentials: 'same-origin' });
+                if (!response.ok) throw new Error('Falha ao carregar áreas.');
+                const areas = parseApiList(await response.json());
+                areas.forEach((area) => { if (area.id !== undefined && area.id !== null) areasMap[area.id] = area; });
+                if (!medicaoArea) return;
+                medicaoArea.innerHTML = '<option value="">Selecione...</option>' + areas
+                    .map((a) => `<option value="${a.id}">${esc(a.nome)}${a.bairro ? ' — ' + esc(a.bairro) : ''}</option>`)
+                    .join('');
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        async function loadRegistros() {
+            const tbody = document.getElementById('registros-body');
+            try {
+                const response = await fetch('/api/monitoramento/', { credentials: 'same-origin' });
+                if (!response.ok) throw new Error('Falha ao carregar registros.');
+                const registros = parseApiList(await response.json());
+                if (!registros.length) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="loading">Sem registros.</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = registros.slice(0, 10).map((row) => {
+                    const risk = riskClass(row.status || 'normal');
+                    return `
+                        <tr>
+                            <td>${fmtDate(row.data_hora)}</td>
+                            <td>${esc(areaName(row))}</td>
+                            <td>${row.nivel_agua ?? '-'} cm</td>
+                            <td>${buildBadge(risk)}</td>
+                        </tr>`;
+                }).join('');
+            } catch (error) {
+                console.error(error);
+                tbody.innerHTML = '<tr><td colspan="4" class="loading">Erro ao carregar.</td></tr>';
+            }
+        }
+
+        if (medicaoForm) medicaoForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            medicaoFormMessage.textContent = '';
+            medicaoFormMessage.className = 'form-message';
+            saveMedicaoBtn.disabled = true;
+            saveMedicaoBtn.textContent = 'Registrando...';
+
+            const formData = new FormData(medicaoForm);
+            try {
+                const response = await fetch('/api/monitoramento/', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                    body: formData
+                });
+                if (!response.ok) {
+                    const errorBody = await response.json().catch(() => ({}));
+                    const errorText = Object.values(errorBody).flat().join(' ') || 'Não foi possível registrar a medição.';
+                    throw new Error(errorText);
+                }
+                medicaoFormMessage.textContent = 'Medição registrada com sucesso.';
+                medicaoFormMessage.classList.add('success');
+                medicaoForm.reset();
+                await loadRegistros();
+            } catch (error) {
+                medicaoFormMessage.textContent = error.message || 'Erro ao registrar medição.';
+            } finally {
+                saveMedicaoBtn.disabled = false;
+                saveMedicaoBtn.textContent = 'Registrar medição';
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadAreas();
+            loadRegistros();
+        });
+    </script>
+{% endblock %}

@@ -1,516 +1,192 @@
-<!DOCTYPE html>
-<html lang="pt-br">
+﻿<!DOCTYPE html>
+{% load static %}
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - MapRisco</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            height: 100vh;
-            overflow: hidden;
-        }
-
-        .login-container {
-            display: flex;
-            height: 100vh;
-            align-items: stretch;
-        }
-
-        /* Lado Esquerdo - Verde */
-        .login-left {
-            background: linear-gradient(135deg, #7cb342 0%, #558b2f 50%, #33691e 100%);
-            width: 50%;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            color: white;
-            padding: 60px 40px;
-            position: relative;
-            overflow: hidden;
-        }
-
-        /* Padrão decorativo de fundo */
-        .login-left::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-image: 
-                radial-gradient(circle at 20% 50%, rgba(255,255,255,0.1) 1px, transparent 1px),
-                radial-gradient(circle at 60% 70%, rgba(255,255,255,0.1) 2px, transparent 2px),
-                radial-gradient(circle at 80% 20%, rgba(255,255,255,0.1) 1.5px, transparent 1.5px),
-                radial-gradient(circle at 40% 80%, rgba(255,255,255,0.1) 1px, transparent 1px),
-                radial-gradient(circle at 90% 60%, rgba(255,255,255,0.1) 1px, transparent 1px);
-            background-size: 200% 200%;
-            animation: bgMove 20s ease-in-out infinite;
-        }
-
-        @keyframes bgMove {
-            0%, 100% { background-position: 0% 0%; }
-            50% { background-position: 100% 100%; }
-        }
-
-        .login-left-content {
-            position: relative;
-            z-index: 2;
-            text-align: center;
-        }
-
-        .logo-marker {
-            width: 100px;
-            height: 100px;
-            margin: 0 auto 30px;
-            background: linear-gradient(135deg, #87cefa 0%, #4682b4 100%);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 60px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            animation: float 3s ease-in-out infinite;
-        }
-
-        @keyframes float {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-20px); }
-        }
-
-        .login-left h1 {
-            font-size: 56px;
-            font-weight: 700;
-            margin-bottom: 15px;
-            letter-spacing: 2px;
-        }
-
-        .login-left p {
-            font-size: 16px;
-            font-weight: 300;
-            line-height: 1.6;
-            opacity: 0.95;
-            max-width: 300px;
-        }
-
-        /* Lado Direito - Branco */
-        .login-right {
-            width: 50%;
-            background: white;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            padding: 60px 60px;
-            position: relative;
-        }
-
-        .user-icon-top {
-            position: absolute;
-            top: 30px;
-            right: 40px;
-            width: 45px;
-            height: 45px;
-            background: #f5f5f5;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #999;
-            font-size: 24px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .user-icon-top:hover {
-            background: #e0e0e0;
-        }
-
-        .login-form-wrapper {
-            width: 100%;
-            max-width: 420px;
-        }
-
-        .login-form-wrapper h2 {
-            font-size: 36px;
-            font-weight: 700;
-            color: #333;
-            margin-bottom: 40px;
-        }
-
-        .form-group {
-            margin-bottom: 25px;
-        }
-
-        .form-group label {
-            font-size: 14px;
-            color: #999;
-            font-weight: 600;
-            margin-bottom: 10px;
-            display: block;
-        }
-
-        .input-wrapper {
-            position: relative;
-            display: flex;
-            align-items: center;
-        }
-
-        .input-wrapper i {
-            position: absolute;
-            left: 16px;
-            color: #ccc;
-            font-size: 18px;
-            pointer-events: none;
-        }
-
-        .form-control {
-            width: 100%;
-            border: none;
-            border-bottom: 2px solid #e0e0e0;
-            padding: 12px 16px 12px 45px;
-            font-size: 14px;
-            background: #f8f9fa;
-            border-radius: 6px;
-            transition: all 0.3s ease;
-            padding-right: 45px;
-        }
-
-        .form-control:focus {
-            outline: none;
-            border-bottom-color: #7cb342;
-            background: white;
-            box-shadow: 0 2px 8px rgba(124, 179, 66, 0.1);
-        }
-
-        .form-control::placeholder {
-            color: #bbb;
-        }
-
-        .lock-icon {
-            position: absolute;
-            right: 16px;
-            color: #ccc;
-            font-size: 16px;
-            pointer-events: none;
-        }
-
-        .remember-forgot {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
-            font-size: 13px;
-        }
-
-        .form-check {
-            display: flex;
-            align-items: center;
-        }
-
-        .form-check-input {
-            width: 18px;
-            height: 18px;
-            margin-right: 8px;
-            cursor: pointer;
-            accent-color: #7cb342;
-        }
-
-        .form-check-label {
-            color: #666;
-            cursor: pointer;
-            user-select: none;
-            margin: 0;
-        }
-
-        .forgot-password {
-            color: #999;
-            text-decoration: none;
-            transition: color 0.3s ease;
-        }
-
-        .forgot-password:hover {
-            color: #7cb342;
-        }
-
-        .btn-login {
-            width: 100%;
-            background: linear-gradient(135deg, #7cb342 0%, #689f38 100%);
-            border: none;
-            color: white;
-            padding: 14px 20px;
-            font-weight: 600;
-            border-radius: 6px;
-            font-size: 16px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(124, 179, 66, 0.2);
-        }
-
-        .btn-login:hover {
-            background: linear-gradient(135deg, #689f38 0%, #558b2f 100%);
-            box-shadow: 0 6px 20px rgba(124, 179, 66, 0.3);
-            transform: translateY(-2px);
-        }
-
-        .btn-login:active {
-            transform: translateY(0);
-        }
-
-        .forgot-link {
-            text-align: center;
-            margin-top: 20px;
-            margin-bottom: 30px;
-        }
-
-        .forgot-link a {
-            color: #999;
-            text-decoration: none;
-            font-size: 13px;
-            transition: color 0.3s ease;
-        }
-
-        .forgot-link a:hover {
-            color: #7cb342;
-        }
-
-        .signup-section {
-            text-align: center;
-            padding-top: 25px;
-            border-top: 1px solid #f0f0f0;
-            margin-top: 20px;
-        }
-
-        .signup-section p {
-            color: #999;
-            font-size: 13px;
-            margin: 0;
-        }
-
-        .signup-section a {
-            color: #2196f3;
-            font-weight: 600;
-            text-decoration: none;
-            transition: color 0.3s ease;
-            margin-left: 4px;
-        }
-
-        .signup-section a:hover {
-            color: #1976d2;
-        }
-
-        .alert {
-            border: none;
-            border-radius: 6px;
-            margin-bottom: 20px;
-            font-size: 13px;
-            animation: slideDown 0.3s ease-out;
-        }
-
-        @keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .alert-danger {
-            background-color: #ffebee;
-            color: #c62828;
-            border-left: 4px solid #c62828;
-        }
-
-        .btn-close {
-            opacity: 0.5;
-            font-size: 12px;
-        }
-
-        .btn-close:hover {
-            opacity: 1;
-        }
-
-        /* Responsivo */
-        @media (max-width: 768px) {
-            .login-container {
-                flex-direction: column;
-            }
-
-            .login-left {
-                width: 100%;
-                padding: 40px 30px;
-            }
-
-            .login-right {
-                width: 100%;
-                padding: 40px 30px;
-                min-height: auto;
-            }
-
-            .login-left h1 {
-                font-size: 40px;
-            }
-
-            .login-left p {
-                font-size: 14px;
-            }
-
-            .login-form-wrapper h2 {
-                font-size: 28px;
-            }
-
-            .logo-marker {
-                width: 80px;
-                height: 80px;
-                font-size: 48px;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .login-left {
-                padding: 30px 20px;
-            }
-
-            .login-right {
-                padding: 30px 20px;
-            }
-
-            .login-left h1 {
-                font-size: 32px;
-            }
-
-            .login-form-wrapper h2 {
-                font-size: 24px;
-            }
-
-            .user-icon-top {
-                top: 20px;
-                right: 20px;
-            }
-        }
-    </style>
+    <title>MAPRISCO - Login</title>
+    <link rel="stylesheet" href="{% static 'auth.css' %}">
 </head>
 <body>
-    <div class="login-container">
-        <!-- Lado Esquerdo - Verde com Logo -->
-        <div class="login-left">
-            <div class="login-left-content">
-                <div class="logo-marker">
-                    <i class="fas fa-map-marker-alt"></i>
+    <div class="container">
+        <!-- Left Panel -->
+        <div class="left-panel">
+            <div class="background-overlay"></div>
+            <div class="curved-edge"></div>
+
+            <div class="left-content">
+                <!-- Logo & Brand -->
+                <div class="brand-section">
+                    <div class="logo">
+                        <svg viewBox="0 0 120 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <ellipse cx="60" cy="60" rx="44" ry="44" fill="#1a4a2e" />
+                            <ellipse cx="60" cy="60" rx="36" ry="36" fill="#2d7a4f" />
+                            <path d="M30 60 Q45 52 60 60 Q75 68 90 60" stroke="#38bdf8" stroke-width="3" fill="none" stroke-linecap="round" />
+                            <path d="M34 70 Q49 62 64 70 Q79 78 90 70" stroke="#38bdf8" stroke-width="2.5" fill="none" stroke-linecap="round" />
+                            <path d="M38 80 Q53 72 68 80 Q83 88 90 80" stroke="#38bdf8" stroke-width="2" fill="none" stroke-linecap="round" />
+                            <circle cx="60" cy="48" r="14" fill="#7dd321" />
+                            <circle cx="60" cy="48" r="8" fill="#38bdf8" />
+                            <path d="M60 100 L48 118 Q60 128 72 118 Z" fill="#7dd321" />
+                            <ellipse cx="60" cy="60" rx="44" ry="44" stroke="#7dd321" stroke-width="3" fill="none" />
+                        </svg>
+                    </div>
+
+                    <h1 class="brand-title">
+                        <span class="brand-green">MAP</span><span class="brand-blue">RISCO</span>
+                    </h1>
+                    <p class="brand-subtitle">Monitoramento e Alerta de Áreas</p>
+                    <p class="brand-subtitle">de Risco de Alagamento</p>
+
+                    <div class="brand-divider"></div>
+
+                    <p class="brand-description">
+                        Sistema inteligente para monitoramento de áreas de risco, alertas e prevenção de alagamentos em Parauapebas.
+                    </p>
                 </div>
-                <h1>MAPRISCO</h1>
-                <p>Monitoramento de áreas de risco de alagamento</p>
+
+                <!-- Mission Card -->
+                <div class="mission-card">
+                    <div class="mission-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                            <polyline points="9 12 12 15 15 9"/>
+                        </svg>
+                    </div>
+                    <h3 class="mission-title">Nossa Missão</h3>
+                    <p class="mission-text">
+                        Proteger vidas e promover cidades mais seguras através da tecnologia.
+                    </p>
+                </div>
             </div>
         </div>
 
-        <!-- Lado Direito - Formulário -->
-        <div class="login-right">
-            <div class="user-icon-top">
-                <i class="fas fa-user-circle"></i>
-            </div>
-
-            <div class="login-form-wrapper">
-                <h2>Bem-vindo</h2>
-
-                {% if messages %}
-                    {% for message in messages %}
-                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                            {{ message }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                    {% endfor %}
-                {% endif %}
-
-                <form method="post" novalidate>
-                    {% csrf_token %}
-
-                    <div class="form-group">
-                        <label for="username">E-mail</label>
-                        <div class="input-wrapper">
-                            <i class="fas fa-envelope"></i>
-                            <input type="text" class="form-control" id="username" name="username" 
-                                   placeholder="E-mail" required autofocus>
-                        </div>
+        <!-- Right Panel -->
+        <div class="right-panel">
+            <div class="form-wrapper">
+                <div class="form-container">
+                    <!-- Header -->
+                    <div class="form-header">
+                        <h2>Bem-vindo de volta!</h2>
+                        <p>Faça login para acessar o sistema MAPRISCO</p>
                     </div>
 
-                    <div class="form-group">
-                        <label for="password">Senha</label>
-                        <div class="input-wrapper">
-                            <i class="fas fa-lock"></i>
-                            <input type="password" class="form-control" id="password" name="password" 
-                                   placeholder="••••••••" required>
-                            <i class="fas fa-lock lock-icon"></i>
+                    {% if messages %}
+                        <div class="alert alert-danger" style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;">
+                            {% for message in messages %}
+                                <div style="color: #991b1b; font-size: 14px;">{{ message }}</div>
+                            {% endfor %}
                         </div>
-                    </div>
+                    {% endif %}
 
-                    <div class="remember-forgot">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="rememberMe" name="rememberMe">
-                            <label class="form-check-label" for="rememberMe">Lembrar-me</label>
+                    <!-- Form -->
+                    <form id="loginForm" class="form" method="post" action="{% url 'login' %}">
+                        {% csrf_token %}
+                        <!-- Email Field -->
+                        <div class="form-group">
+                            <label for="email" class="form-label">E-mail</label>
+                            <div class="input-wrapper">
+                                <span class="input-icon">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="2" y="4" width="20" height="16" rx="2"/>
+                                        <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+                                    </svg>
+                                </span>
+                                <input
+                                    type="email"
+                                    id="email"
+                                    name="email"
+                                    placeholder="Digite seu e-mail"
+                                    class="form-input"
+                                    required
+                                />
+                            </div>
                         </div>
-                    </div>
 
-                    <button type="submit" class="btn-login">Entrar</button>
+                        <!-- Password Field -->
+                        <div class="form-group">
+                            <label for="password" class="form-label">Senha</label>
+                            <div class="input-wrapper">
+                                <span class="input-icon">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                    </svg>
+                                </span>
+                                <input
+                                    type="password"
+                                    id="password"
+                                    name="password"
+                                    placeholder="Digite sua senha"
+                                    class="form-input"
+                                    required
+                                />
+                                <button type="button" class="toggle-password" id="togglePassword">
+                                    <svg class="eye-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                        <circle cx="12" cy="12" r="3"/>
+                                    </svg>
+                                    <svg class="eye-off-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                                        <line x1="1" y1="1" x2="23" y2="23"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
 
-                    <div class="forgot-link">
-                        <a href="{% url 'login' %}">Esqueceu sua senha?</a>
-                    </div>
-                </form>
+                        <!-- Remember & Forgot Password -->
+                        <div class="form-footer">
+                            <label class="checkbox-wrapper">
+                                <input type="checkbox" id="rememberMe" name="rememberMe" />
+                                <span>Lembrar de mim</span>
+                            </label>
+                            <a href="{% url 'password_reset' %}" class="forgot-password">Esqueceu sua senha?</a>
+                        </div>
 
-                <div class="signup-section">
-                    <p>Não tem uma conta? <a href="{% url 'register' %}">Registrar-se</a></p>
+                        <!-- Submit Button -->
+                        <button type="submit" class="btn btn-primary">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M15 3h6v6M10 14l8.5-8.5M5 21H3V5h16v5"/>
+                            </svg>
+                            Entrar
+                        </button>
+
+                        <!-- Divider -->
+                        <div class="divider">
+                            <span>ou</span>
+                        </div>
+
+                        <a href="{% url 'register' %}" class="btn btn-secondary" style="margin-top: 12px; width: 100%;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                                <circle cx="9" cy="7" r="4"/>
+                                <path d="M20 8v6"/>
+                                <path d="M23 11h-6"/>
+                            </svg>
+                            Cadastrar-se
+                        </a>
+                    </form>
+
+                    <!-- Footer -->
+                    <p class="form-copyright">
+                        © 2024 MAPRISCO. Todos os direitos reservados.
+                    </p>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // Auto-dismiss alerts after 5 seconds
-        document.querySelectorAll('.alert').forEach(alert => {
-            setTimeout(() => {
-                const bsAlert = new bootstrap.Alert(alert);
-                bsAlert.close();
-            }, 5000);
-        });
+    <script>// Toggle password visibility
+const passwordInput = document.getElementById('password');
+const togglePasswordBtn = document.getElementById('togglePassword');
 
-        // Remember me functionality
-        const rememberCheckbox = document.getElementById('rememberMe');
-        const usernameInput = document.getElementById('username');
-
-        // Restore username from localStorage if exists
-        if (localStorage.getItem('rememberedUsername')) {
-            usernameInput.value = localStorage.getItem('rememberedUsername');
-            rememberCheckbox.checked = true;
-        }
-
-        // Save username to localStorage when remembering
-        rememberCheckbox.addEventListener('change', function() {
-            if (this.checked) {
-                localStorage.setItem('rememberedUsername', usernameInput.value);
-            } else {
-                localStorage.removeItem('rememberedUsername');
-            }
-        });
-
-        // Update localStorage when username changes and remember is checked
-        usernameInput.addEventListener('input', function() {
-            if (rememberCheckbox.checked) {
-                localStorage.setItem('rememberedUsername', this.value);
-            }
-        });
-    </script>
+if (togglePasswordBtn) {
+  togglePasswordBtn.addEventListener('click', function (e) {
+    e.preventDefault();
+    const isPassword = passwordInput.type === 'password';
+    passwordInput.type = isPassword ? 'text' : 'password';
+    this.classList.toggle('active', isPassword);
+  });
+}
+</script>
 </body>
 </html>

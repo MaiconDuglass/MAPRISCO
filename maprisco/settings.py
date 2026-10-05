@@ -10,10 +10,18 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load environment variables from a .env file if available.
+try:
+    from dotenv import load_dotenv
+    load_dotenv(BASE_DIR / '.env')
+except ImportError:
+    pass
 
 # =============================================================================
 # SECURITY SETTINGS
@@ -23,13 +31,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-your-secret-key-here'
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-your-secret-key-here')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes')
 
-# Hosts allowed to serve the application
-ALLOWED_HOSTS = []
+# Hosts allowed to serve the application (comma separated in .env)
+# Include 'testserver' for Django test client
+ALLOWED_HOSTS = [h.strip() for h in os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,testserver').split(',') if h.strip()]
 
 # =============================================================================
 # APPLICATION DEFINITION
@@ -37,16 +46,18 @@ ALLOWED_HOSTS = []
 
 INSTALLED_APPS = [
     # Django built-in apps
-    'django.contrib.admin',        # Admin interface
     'django.contrib.auth',         # Authentication system
     'django.contrib.contenttypes', # Content types framework
     'django.contrib.sessions',     # Session management
     'django.contrib.messages',     # Messaging framework
     'django.contrib.staticfiles',  # Static files serving
+    'django.contrib.admin',        # Django admin site
 
     # Third-party apps
     'rest_framework',              # Django REST Framework for API
     'rest_framework_simplejwt',    # JWT authentication for API
+    'corsheaders',                 # CORS headers for the API
+    'whitenoise.runserver_nostatic',  # Serve static files via WhiteNoise
 
     # Project apps
     'apps.core',                   # Core app with main views and models
@@ -59,7 +70,9 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',      # Security headers
+    'whitenoise.middleware.WhiteNoiseMiddleware',         # Serve static files (production)
     'django.contrib.sessions.middleware.SessionMiddleware', # Session management
+    'corsheaders.middleware.CorsMiddleware',              # CORS headers
     'django.middleware.common.CommonMiddleware',          # Common operations
     'django.middleware.csrf.CsrfViewMiddleware',          # CSRF protection
     'django.contrib.auth.middleware.AuthenticationMiddleware', # User authentication
@@ -85,6 +98,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',    # Request object
                 'django.contrib.auth.context_processors.auth',   # User authentication
                 'django.contrib.messages.context_processors.messages', # Messages
+                'maprisco.context_processors.map_settings',      # Map settings
             ],
         },
     },
@@ -96,12 +110,93 @@ TEMPLATES = [
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework.authentication.SessionAuthentication',  # Allow Django session auth for dashboard
         'rest_framework_simplejwt.authentication.JWTAuthentication',  # JWT auth for API
     ),
     'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticated',  # Require authentication for API
+        'rest_framework.permissions.IsAuthenticatedOrReadOnly',  # Public reads, writes require auth
     ),
+    'DEFAULT_FILTER_BACKENDS': (
+        'rest_framework.filters.SearchFilter',   # ?search=...
+        'rest_framework.filters.OrderingFilter',  # ?ordering=...
+    ),
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 100,
+    'DEFAULT_THROTTLE_CLASSES': (
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ),
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '300/hour',
+        'user': '3000/hour',
+    },
 }
+
+# JWT authentication duration
+from datetime import timedelta  # noqa: E402
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}
+
+# CORS - trusted origins for the API (comma separated in .env)
+CORS_ALLOWED_ORIGINS = [o.strip() for o in os.environ.get('CORS_ALLOWED_ORIGINS', 'http://localhost:8000,http://127.0.0.1:8000').split(',') if o.strip()]
+
+# =============================================================================
+# LOGGING
+# =============================================================================
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '[{asctime}] {levelname} {name} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'WARNING',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': os.environ.get('DJANGO_LOG_LEVEL', 'INFO'),
+            'propagate': False,
+        },
+        'apps': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
+
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 'yes')
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+
+# Em desenvolvimento, sem credenciais SMTP reais configuradas, usa o backend de
+# console para que o fluxo de recuperação de senha funcione na demonstração.
+if DEBUG and (not EMAIL_HOST_USER or 'seu-email' in EMAIL_HOST_USER):
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'no-reply@maprisco.local')
+LOGIN_URL = 'login'
+SESSION_COOKIE_AGE = 1209600  # 2 weeks in seconds
 
 WSGI_APPLICATION = 'maprisco.wsgi.application'
 
@@ -112,8 +207,12 @@ WSGI_APPLICATION = 'maprisco.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',  # SQLite database engine for development
-        'NAME': BASE_DIR / 'db.sqlite3',         # Database file path
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get('DB_NAME', 'maprisco_db'),
+        'USER': os.environ.get('DB_USER', 'maprisco_user'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', ''),
+        'HOST': os.environ.get('DB_HOST', 'localhost'),
+        'PORT': os.environ.get('DB_PORT', '5432'),
     }
 }
 
@@ -155,9 +254,53 @@ USE_TZ = True            # Enable timezone support
 # =============================================================================
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
-STATIC_URL = 'static/'   # URL prefix for static files
+STATIC_URL = '/static/'   # URL prefix for static files
+STATICFILES_DIRS = [BASE_DIR / 'static']
+STATIC_ROOT = BASE_DIR / 'staticfiles'  # Collected static files for production
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# =============================================================================
+# SECURITY SETTINGS (Production)
+# =============================================================================
+# These are automatically configured based on DEBUG setting
+
+if not DEBUG:
+    # HTTPS/SSL
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
+    # Secure cookies
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
+    # Security headers
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_BROWSER_XSS_FILTER = True
+    X_FRAME_OPTIONS = 'DENY'
+
+    # Proxy SSL header (if behind reverse proxy)
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# =============================================================================
+# MAP SETTINGS
+# =============================================================================
+
+# Default map center coordinates (Parauapebas, PA)
+MAP_CENTER_LAT = -6.064
+MAP_CENTER_LNG = -49.9011
+MAP_DEFAULT_ZOOM = 12
+
+# =============================================================================
+# GEOCODING SETTINGS
+# =============================================================================
+
+# User-Agent for Nominatim API (OpenStreetMap)
+# Required by Nominatim usage policy: https://operations.osmfoundation.org/policies/nominatim/
+# Formato: "NomeAplicacao/Versao (contato@email.com)"
+GEOCODER_USER_AGENT = os.environ.get('GEOCODER_USER_AGENT', 'MAPRISCO-TCC/1.0 (contato@maprisco.local)')
 
 # =============================================================================
 # DEFAULT PRIMARY KEY FIELD TYPE

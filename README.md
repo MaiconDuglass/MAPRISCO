@@ -108,6 +108,27 @@ DATABASES = {
 }
 ```
 
+### Configuração de Email (Recuperação de Senha)
+A configuração de email é carregada a partir de variáveis de ambiente ou de um arquivo `.env` no diretório do projeto.
+
+Crie um arquivo `.env` a partir de `.env.example` e atualize com suas credenciais:
+```bash
+copy .env.example .env
+```
+
+Edite `.env` com seus dados de SMTP:
+```env
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=seu-email@gmail.com
+EMAIL_HOST_PASSWORD=sua-senha-de-app-ou-smtp
+DEFAULT_FROM_EMAIL=no-reply@maprisco.local
+```
+
+> Para usar Gmail, pode ser necessário criar uma senha de app ou habilitar o recurso de app password.
+
 ### Passo 6: Migrações e Superusuário
 ```bash
 # Criar e aplicar migrações
@@ -451,3 +472,30 @@ Isso é implementado usando Django signals (post_save) no app monitoramento.
 
 - `maprisco/`: Configurações do projeto
 - `apps/core/`: App principal com modelos e views básicas
+
+## Melhorias Implementadas
+
+### Páginas Web
+- `/alertas/`: Central de alertas com busca, filtros por nível/status e ação "marcar como resolvido".
+- `/monitoramento/`: Cadastro de medições de nível de água (classificação automática) e histórico recente.
+- `/admin/`: Painel de administração do Django.
+- Template base reutilizável (`templates/base.html`) com sidebar e topbar compartilhadas e busca funcional nas páginas.
+
+### API
+- Paginação (`?page=`), busca (`?search=`) e ordenação (`?ordering=`) habilitadas nos três endpoints.
+- Endpoint `POST /api/alertas/<id>/resolver/` para resolver alertas.
+- Throttling (limite de requisições) e CORS configurados.
+- JWT com tempo de expiração limitado (30 min de acesso, 7 dias de refresh).
+- Permissões consistentes (leitura pública, escrita autenticada).
+
+### Lógica de Negócio
+- Classificação automática de status: nível ≥ 80 cm = crítico, ≥ 50 cm = alerta, senão normal.
+- Geração de alerta (nível alto) apenas na transição para o estado crítico, evitando duplicidade.
+- Toda a lógica foi movida para `RegistroMonitoramento.save()` com `transaction.atomic`.
+- `populate_parauapebas` não apaga dados existentes (usa `get_or_create`).
+
+### Qualidade
+- Testes automatizados em `apps/core/tests.py` e `apps/monitoramento/tests.py`.
+- Logging configurado via variável `DJANGO_LOG_LEVEL`.
+- Imagem enviada agora é validada (`ImageField` + limite de 5 MB).
+- `ALLOWED_HOSTS`, CORS e demais configurações leitura do `.env`.

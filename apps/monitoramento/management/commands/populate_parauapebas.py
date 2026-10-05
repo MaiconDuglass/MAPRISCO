@@ -5,9 +5,6 @@ class Command(BaseCommand):
     help = 'Popula dados de exemplo de áreas de risco em Parauapebas, Pará'
 
     def handle(self, *args, **options):
-        # Limpar dados antigos se existe
-        AreaRisco.objects.all().delete()
-
         # Dados de exemplo para Parauapebas, PA
         areas_data = [
             {
@@ -54,8 +51,14 @@ class Command(BaseCommand):
             },
         ]
 
-        # Criar áreas no banco de dados
+        # Criar áreas no banco de dados (sem apagar dados existentes)
+        criadas = 0
         for area in areas_data:
-            AreaRisco.objects.create(**area)
+            _, created = AreaRisco.objects.get_or_create(
+                nome=area['nome'],
+                defaults=area,
+            )
+            if created:
+                criadas += 1
 
-        self.stdout.write(self.style.SUCCESS(f'✓ {len(areas_data)} áreas de risco criadas com sucesso em Parauapebas!'))
+        self.stdout.write(self.style.SUCCESS(f'OK: {criadas} areas de risco criadas (existentes mantidas).'))

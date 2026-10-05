@@ -1,0 +1,289 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Alertas - MapRisco{% endblock %}
+{% block extra_css %}
+    <style>
+        .head {
+            text-align: center;
+            margin-bottom: 12px;
+        }
+
+        .head h1 {
+            margin: 0;
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .head p {
+            margin: 3px 0 0;
+            color: var(--text-2);
+            font-size: 0.88rem;
+        }
+
+        .alert-card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-top: 10px;
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            box-shadow: 0 8px 24px rgba(22, 29, 44, 0.06);
+        }
+
+        .alert-card.resolvido {
+            opacity: 0.55;
+        }
+
+        .alert-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 10px;
+            display: grid;
+            place-items: center;
+            flex-shrink: 0;
+            font-size: 1.1rem;
+        }
+
+        .alert-icon.alto { background: rgba(239, 68, 68, 0.12); color: #dc2626; }
+        .alert-icon.medio { background: rgba(245, 158, 11, 0.14); color: #d97706; }
+        .alert-icon.baixo { background: rgba(34, 197, 94, 0.14); color: #16a34a; }
+        .alert-icon.critico { background: rgba(220, 38, 38, 0.16); color: #b91c1c; }
+        .alert-icon.alerta { background: rgba(245, 158, 11, 0.14); color: #d97706; }
+        .alert-icon svg { display: none; }
+
+        .alert-body { flex: 1; min-width: 0; }
+        .alert-meta { display: flex; gap: 12px; flex-wrap: wrap; color: var(--text-2); font-size: 0.82rem; margin-bottom: 4px; }
+        .alert-mensagem { margin: 0; color: var(--text-1); font-size: 0.92rem; }
+        .alert-area { font-weight: 700; color: var(--brand-3); font-size: 0.95rem; }
+
+        .badge-level {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 10px;
+            border-radius: 14px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #fff;
+            text-transform: capitalize;
+        }
+
+        .badge-level.alto { background: #ef4444; }
+        .badge-level.medio { background: #f59e0b; }
+        .badge-level.baixo { background: #22c55e; }
+        .badge-level.critico { background: #b91c1c; }
+        .badge-level.alerta { background: #f59e0b; }
+
+        .btn-resolve {
+            border: none;
+            border-radius: 8px;
+            min-height: 36px;
+            padding: 0 14px;
+            font-weight: 700;
+            font-size: 0.85rem;
+            color: #fff;
+            background: linear-gradient(145deg, #74c95e 0%, #57aa45 100%);
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .btn-resolve:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .filters-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        .form-field {
+            border: 1px solid #d8dde8;
+            border-radius: 7px;
+            min-height: 40px;
+            padding: 0 12px;
+            outline: none;
+            color: #40495f;
+            background: #fff;
+            font-size: 0.9rem;
+        }
+
+        .btn-filter {
+            border: none;
+            border-radius: 7px;
+            min-height: 40px;
+            padding: 0 22px;
+            font-weight: 700;
+            color: #fff;
+            background: linear-gradient(145deg, #74c95e 0%, #57aa45 100%);
+            cursor: pointer;
+        }
+
+        .loading {
+            color: var(--text-2);
+            padding: 18px;
+            text-align: center;
+        }
+
+        @media (max-width: 680px) {
+            .alert-card { flex-direction: column; }
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<section class="content">
+    <div class="head">
+        <h1>Central de Alertas</h1>
+        <p>Acompanhe e gerencie os alertas gerados automaticamente</p>
+    </div>
+
+    <div class="filters-bar">
+        <input class="form-field" id="searchAlerta" type="text" placeholder="Buscar por área ou mensagem..." style="flex:1; min-width:200px;">
+        <select class="form-field" id="filtroNivel">
+            <option value="">Todos os níveis</option>
+            <option value="critico">Crítico</option>
+            <option value="alto">Alto</option>
+            <option value="medio">Médio</option>
+            <option value="baixo">Baixo</option>
+            <option value="alerta">Alerta</option>
+        </select>
+        <select class="form-field" id="filtroResolvido">
+            <option value="">Todos os status</option>
+            <option value="aberto">Abertos</option>
+            <option value="resolvido">Resolvidos</option>
+        </select>
+        <button class="btn-filter" id="applyFilter" type="button">Filtrar</button>
+    </div>
+
+    <div id="alertas-list">
+        <div class="loading">Carregando alertas...</div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        let allAlertas = [];
+
+        function parseApiList(payload) {
+            if (Array.isArray(payload)) return payload;
+            if (payload && Array.isArray(payload.results)) return payload.results;
+            return [];
+        }
+
+        function getCookie(name) {
+            const cookieValue = document.cookie
+                .split('; ')
+                .find((row) => row.startsWith(name + '='));
+            return cookieValue ? decodeURIComponent(cookieValue.split('=')[1]) : '';
+        }
+
+        function fmtDate(value) {
+            if (!value) return '-';
+            const dt = new Date(value);
+            if (Number.isNaN(dt.getTime())) return '-';
+            return dt.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function iconFor(nivel) {
+            const n = (nivel || 'medio').toLowerCase();
+            if (n === 'critico' || n === 'alto') return 'fa-triangle-exclamation';
+            return 'fa-bell';
+        }
+
+        function renderAlertas() {
+            const term = document.getElementById('searchAlerta').value.trim().toLowerCase();
+            const nivel = document.getElementById('filtroNivel').value;
+            const statusFiltro = document.getElementById('filtroResolvido').value;
+
+            const filtered = allAlertas.filter((a) => {
+                const byTerm = !term ||
+                    ((a.area_nome || '') + ' ' + (a.mensagem || '')).toLowerCase().includes(term);
+                const byNivel = !nivel || (a.nivel || '').toLowerCase() === nivel;
+                const byStatus = statusFiltro === 'aberto' ? !a.resolvido : statusFiltro === 'resolvido' ? !!a.resolvido : true;
+                return byTerm && byNivel && byStatus;
+            });
+
+            const container = document.getElementById('alertas-list');
+            if (!filtered.length) {
+                container.innerHTML = '<div class="loading">Nenhum alerta encontrado.</div>';
+                return;
+            }
+
+            container.innerHTML = filtered.map((a) => {
+                const nivel = (a.nivel || 'medio').toLowerCase();
+                const resolvido = !!a.resolvido;
+                const nivelLabel = nivel.charAt(0).toUpperCase() + nivel.slice(1);
+                return `
+                    <article class="alert-card${resolvido ? ' resolvido' : ''}">
+                        <div class="alert-icon ${nivel}"><i class="fa-solid ${iconFor(nivel)}"></i></div>
+                        <div class="alert-body">
+                            <div class="alert-meta">
+                                <span><i class="fa-regular fa-calendar"></i> ${fmtDate(a.data_hora)}</span>
+                                <span class="badge-level ${nivel}">${nivelLabel(a.nivel)}</span>
+                                ${resolvido ? '<span class="badge-level baixo">Resolvido</span>' : ''}
+                            </div>
+                            <div class="alert-area"><i class="fa-solid fa-location-dot"></i> ${esc(a.area_nome || 'Área')}</div>
+                            <p class="alert-mensagem">${esc(a.mensagem || '-')}</p>
+                        </div>
+                        ${resolvido ? '' : `<button class="btn-resolve" data-id="${a.id}" type="button"><i class="fa-solid fa-check"></i> Marcar resolvido</button>`}
+                    </article>`;
+            }).join('');
+        }
+
+        function nivelLabel(nivel) {
+            const map = { alto: 'Alto', medio: 'Médio', baixo: 'Baixo', critico: 'Crítico', alerta: 'Alerta' };
+            return map[(nivel || 'medio').toLowerCase()] || nivel;
+        }
+
+        function esc(text) {
+            return String(text || '').replace(/[&<>"']/g, function(m) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]; });
+        }
+
+        async function loadAlertas() {
+            try {
+                const response = await fetch('/api/alertas/', { credentials: 'same-origin' });
+                if (!response.ok) throw new Error('Falha ao carregar alertas.');
+                allAlertas = parseApiList(await response.json());
+                renderAlertas();
+            } catch (error) {
+                console.error(error);
+                document.getElementById('alertas-list').innerHTML = '<div class="loading">Erro ao carregar alertas.</div>';
+            }
+        }
+
+        document.getElementById('alertas-list').addEventListener('click', async (event) => {
+            const btn = event.target.closest('.btn-resolve');
+            if (!btn) return;
+            const id = btn.dataset.id;
+            btn.disabled = true;
+            try {
+                const response = await fetch(`/api/alertas/${id}/resolver/`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRFToken': getCookie('csrftoken') }
+                });
+                if (!response.ok) throw new Error('Falha ao resolver alerta.');
+                await loadAlertas();
+            } catch (error) {
+                console.error(error);
+                alert('Não foi possível resolver o alerta.');
+            }
+        });
+
+        document.getElementById('applyFilter').addEventListener('click', renderAlertas);
+        document.getElementById('searchAlerta').addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') renderAlertas();
+        });
+        document.getElementById('filtroNivel').addEventListener('change', renderAlertas);
+        document.getElementById('filtroResolvido').addEventListener('change', renderAlertas);
+
+        document.addEventListener('DOMContentLoaded', loadAlertas);
+    </script>
+{% endblock %}

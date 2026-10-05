@@ -4,7 +4,10 @@ Models for the monitoramento app.
 This app handles risk area monitoring, water level records, and alert generation.
 """
 
-from django.db import models
+from django.db import models, transaction
+import logging
+
+logger = logging.getLogger('apps.monitoramento')
 
 class AreaRisco(models.Model):
     """
@@ -23,8 +26,9 @@ class AreaRisco(models.Model):
 
     nome = models.CharField(max_length=100, help_text="Name of the risk area")
     bairro = models.CharField(max_length=100, blank=True, help_text="Neighborhood where the area is located")
-    latitude = models.DecimalField(max_digits=9, decimal_places=6, help_text="Latitude coordinate")
-    longitude = models.DecimalField(max_digits=9, decimal_places=6, help_text="Longitude coordinate")
+    cidade = models.CharField(max_length=100, default='Parauapebas', help_text="City where the area is located")
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True, help_text="Latitude coordinate")
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True, help_text="Longitude coordinate")
     nivel_risco = models.CharField(
         max_length=10,
         choices=NIVEL_RISCO_CHOICES,
@@ -32,7 +36,7 @@ class AreaRisco(models.Model):
         help_text="Risk level classification"
     )
     descricao = models.TextField(blank=True, help_text="Optional description of the area")
-    foto = models.FileField(upload_to='areas/', blank=True, null=True, help_text="Optional image or file")
+    foto = models.ImageField(upload_to='areas/', blank=True, null=True, help_text="Optional image of the area")
     data_criacao = models.DateTimeField(auto_now_add=True, help_text="Creation timestamp")
 
     def __str__(self):
@@ -43,6 +47,9 @@ class AreaRisco(models.Model):
         verbose_name = "Área de Risco"
         verbose_name_plural = "Áreas de Risco"
         ordering = ['-data_criacao']
+        constraints = [
+            models.UniqueConstraint(fields=['nome', 'bairro', 'cidade'], name='unique_area_per_location')
+        ]
 
 
 class RegistroMonitoramento(models.Model):
@@ -69,7 +76,7 @@ class RegistroMonitoramento(models.Model):
     nivel_agua = models.DecimalField(
         max_digits=5,
         decimal_places=2,
-        help_text="Water level measurement in meters"
+        help_text="Water level measurement in centimeters"
     )
     status = models.CharField(
         max_length=10,
@@ -78,6 +85,41 @@ class RegistroMonitoramento(models.Model):
         help_text="Current monitoring status"
     )
     data_hora = models.DateTimeField(auto_now_add=True, help_text="Record timestamp")
+
+    def save(self, *args, **kwargs):
+        """Auto-classify the status and generate alerts when thresholds are crossed."""
+        with transaction.atomic():
+            # Retain the previous status so each escalation generates a single alert.
+            previous_status = None
+            if self.pk:
+                previous_status = RegistroMonitoramento.objects.select_for_update().filter(pk=self.pk).values_list('status', flat=True).first()
+
+            # Automatic classification based on the water level.
+            if self.nivel_agua is not None:
+                if self.nivel_agua >= 80:
+                    self.status = 'critico'
+                elif self.nivel_agua >= 50:
+                    self.status = 'alerta'
+                else:
+                    self.status = 'normal'
+
+            super().save(*args, **kwargs)
+
+            # Also generate alert if status is manually set to 'critico' (e.g., via admin/API)
+            # and previous status wasn't already 'critico'.
+            should_create_alert = (
+                self.status == 'critico' and previous_status != 'critico'
+            ) or (
+                self.nivel_agua is not None and self.nivel_agua >= 80 and previous_status != 'critico'
+            )
+
+            if should_create_alert:
+                Alerta.objects.create(
+                    area=self.area,
+                    mensagem=f"Nível de água crítico detectado: {self.nivel_agua} cm na área {self.area.nome}.",
+                    nivel='alto'
+                )
+                logger.info("Alerta criado para a área %s (nível %s)", self.area.nome, self.nivel_agua)
 
     def __str__(self):
         """String representation of the monitoring record."""
@@ -102,6 +144,7 @@ class Alerta(models.Model):
         ('baixo', 'Baixo'),
         ('medio', 'Médio'),
         ('alto', 'Alto'),
+        ('critico', 'Crítico'),
     ]
 
     area = models.ForeignKey(
@@ -117,7 +160,13 @@ class Alerta(models.Model):
         default='baixo',
         help_text="Alert severity level"
     )
+    resolvido = models.BooleanField(default=False, help_text="Whether the alert has been resolved")
     data_hora = models.DateTimeField(auto_now_add=True, help_text="Alert timestamp")
+
+    def resolver(self):
+        """Mark the alert as resolved."""
+        self.resolvido = True
+        self.save(update_fields=['resolvido'])
 
     def __str__(self):
         """String representation of the alert."""
