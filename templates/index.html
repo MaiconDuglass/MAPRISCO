@@ -728,7 +728,8 @@
         // manterVisao = true na atualização automática: não mexe no zoom nem troca o cartão aberto
         function renderAreas(areas, { manterVisao = false } = {}) {
             clearMarkers();
-            updateStats(areas);
+            // Os contadores do topo mostram sempre o total de áreas, independente do filtro aplicado
+            updateStats(allAreas);
             if (!areas.length) return;
 
             const bounds = [];
