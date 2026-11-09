@@ -434,3 +434,99 @@ class DadosDemoCommandTests(TestCase):
         saida = self.rodar()
         self.assertIn('cadastrar_areas_reais', saida)
         self.assertEqual(RegistroMonitoramento.objects.count(), 0)
+
+
+class SituacaoAtualDaAreaApiTests(TestCase):
+    """Campos ultimo_status, ultimo_nivel_agua e ultima_medicao_em em /api/areas/."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.area = AreaRisco.objects.create(nome='Rua do Rio', bairro='União', nivel_risco='alto')
+
+    def medir(self, nivel, horas_atras=0, area=None):
+        registro = RegistroMonitoramento.objects.create(area=area or self.area, nivel_agua=Decimal(str(nivel)))
+        if horas_atras:
+            RegistroMonitoramento.objects.filter(pk=registro.pk).update(
+                data_hora=timezone.now() - timedelta(hours=horas_atras))
+        return registro
+
+    def detalhe(self, area=None):
+        response = self.client.get(f'/api/areas/{(area or self.area).pk}/')
+        self.assertEqual(response.status_code, 200)
+        return response.data
+
+    def test_area_sem_medicao_retorna_null(self):
+        dados = self.detalhe()
+        self.assertIsNone(dados['ultimo_status'])
+        self.assertIsNone(dados['ultimo_nivel_agua'])
+        self.assertIsNone(dados['ultima_medicao_em'])
+
+    def test_varias_medicoes_retorna_a_mais_recente(self):
+        self.medir(90, horas_atras=48)   # crítico, antigo
+        self.medir(60, horas_atras=24)   # alerta
+        self.medir(35, horas_atras=1)    # normal, o mais recente
+        dados = self.detalhe()
+        self.assertEqual(dados['ultimo_status'], 'normal')
+        self.assertEqual(dados['ultimo_nivel_agua'], '35.00')
+        self.assertIsNotNone(dados['ultima_medicao_em'])
+
+    def test_nivel_de_risco_cadastrado_nao_muda(self):
+        """A área continua 'alto' no cadastro, mesmo com a situação atual normal."""
+        self.medir(35)
+        dados = self.detalhe()
+        self.assertEqual(dados['nivel_risco'], 'alto')
+        self.assertEqual(dados['ultimo_status'], 'normal')
+
+    def test_registrar_90_cm_deixa_critico(self):
+        self.medir(35, horas_atras=2)
+        self.assertEqual(self.detalhe()['ultimo_status'], 'normal')
+
+        user = User.objects.create_user(username='cidadao@exemplo.com', password='senha123')
+        self.client.force_authenticate(user)
+        response = self.client.post('/api/monitoramento/', {'area': self.area.pk, 'nivel_agua': '90'}, format='json')
+        self.assertEqual(response.status_code, 201)
+
+        dados = self.detalhe()
+        self.assertEqual(dados['ultimo_status'], 'critico')
+        self.assertEqual(dados['ultimo_nivel_agua'], '90.00')
+
+    def test_listagem_traz_a_situacao_de_cada_area(self):
+        outra = AreaRisco.objects.create(nome='Rua do Igarapé', bairro='Novo Brasil', nivel_risco='medio')
+        self.medir(85, area=outra)
+        response = self.client.get('/api/areas/')
+        por_id = {a['id']: a for a in response.data['results']}
+        self.assertIsNone(por_id[self.area.pk]['ultimo_status'])
+        self.assertEqual(por_id[outra.pk]['ultimo_status'], 'critico')
+
+    def test_listagem_sem_n_mais_1(self):
+        """O número de consultas não cresce com a quantidade de áreas."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        self.medir(40)
+        with CaptureQueriesContext(connection) as poucas:
+            self.client.get('/api/areas/')
+        for i in range(5):
+            area = AreaRisco.objects.create(nome=f'Rua {i}', bairro='Centro')
+            self.medir(50 + i, area=area)
+        with CaptureQueriesContext(connection) as muitas:
+            self.client.get('/api/areas/')
+        self.assertEqual(len(poucas), len(muitas))
+
+    def test_campos_sao_somente_leitura(self):
+        admin = User.objects.create_user(username='admin@exemplo.com', password='x', is_staff=True)
+        self.client.force_authenticate(admin)
+        response = self.client.patch(f'/api/areas/{self.area.pk}/', {'ultimo_status': 'critico'}, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.data['ultimo_status'])
+
+    def test_resposta_do_cadastro_traz_os_campos(self):
+        user = User.objects.create_user(username='cidadao@exemplo.com', password='senha123')
+        self.client.force_authenticate(user)
+        response = self.client.post('/api/areas/', {
+            'nome': 'Rua Nova', 'bairro': 'Primavera', 'cidade': 'Parauapebas',
+            'latitude': '-6.06', 'longitude': '-49.91', 'nivel_risco': 'baixo',
+        }, format='json')
+        self.assertEqual(response.status_code, 201)
+        self.assertIn('ultimo_status', response.data)
+        self.assertIsNone(response.data['ultimo_status'])

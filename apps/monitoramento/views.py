@@ -1,3 +1,4 @@
+from django.db.models import OuterRef, Subquery
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -15,6 +16,15 @@ class AreaRiscoViewSet(viewsets.ModelViewSet):
     search_fields = ['nome', 'bairro', 'cidade', 'descricao', 'nivel_risco']
     ordering_fields = ['nome', 'bairro', 'cidade', 'nivel_risco', 'data_criacao']
     ordering = ['-data_criacao']
+
+    def get_queryset(self):
+        # Dados da medição mais recente de cada área na mesma consulta (evita N+1 na listagem)
+        ultima = RegistroMonitoramento.objects.filter(area=OuterRef('pk')).order_by('-data_hora', '-pk')
+        return super().get_queryset().annotate(
+            anot_ultimo_status=Subquery(ultima.values('status')[:1]),
+            anot_ultimo_nivel=Subquery(ultima.values('nivel_agua')[:1]),
+            anot_ultima_medicao=Subquery(ultima.values('data_hora')[:1]),
+        )
 
     def _check_geocode_failure(self, serializer) -> bool:
         """Verifica se geocodificação falhou por endereço não encontrado."""

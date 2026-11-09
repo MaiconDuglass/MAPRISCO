@@ -13,11 +13,45 @@ _GEOCODE_FAILED_KEY = '_geocode_not_found'
 
 class AreaRiscoSerializer(serializers.ModelSerializer):
     area_nome = serializers.CharField(source='nome', read_only=True)
+    # Situação atual da área = dados da medição mais recente (null se não houver medição)
+    ultimo_status = serializers.SerializerMethodField()
+    ultimo_nivel_agua = serializers.SerializerMethodField()
+    ultima_medicao_em = serializers.SerializerMethodField()
 
     class Meta:
         model = AreaRisco
         fields = '__all__'
         read_only_fields = ['data_criacao']
+
+    def _ultima_medicao(self, obj):
+        """(status, nivel_agua, data_hora) da medição mais recente.
+
+        Na listagem os valores já vêm anotados pelo AreaRiscoViewSet (uma única consulta).
+        Sem anotação (ex.: resposta de um POST), busca a medição diretamente.
+        """
+        if hasattr(obj, 'anot_ultimo_status'):
+            return obj.anot_ultimo_status, obj.anot_ultimo_nivel, obj.anot_ultima_medicao
+        if not hasattr(obj, '_cache_ultima_medicao'):
+            ultima = (
+                RegistroMonitoramento.objects.filter(area=obj)
+                .order_by('-data_hora', '-pk')
+                .values_list('status', 'nivel_agua', 'data_hora')
+                .first()
+            ) if obj.pk else None
+            obj._cache_ultima_medicao = ultima or (None, None, None)
+        return obj._cache_ultima_medicao
+
+    def get_ultimo_status(self, obj):
+        return self._ultima_medicao(obj)[0]
+
+    def get_ultimo_nivel_agua(self, obj):
+        nivel = self._ultima_medicao(obj)[1]
+        # Mesmo formato do nivel_agua em /api/monitoramento/ (texto com 2 casas: "35.00")
+        return None if nivel is None else serializers.DecimalField(max_digits=5, decimal_places=2).to_representation(nivel)
+
+    def get_ultima_medicao_em(self, obj):
+        data_hora = self._ultima_medicao(obj)[2]
+        return None if data_hora is None else serializers.DateTimeField().to_representation(data_hora)
 
     def get_validators(self):
         # Mensagem amigável para a regra "rua + bairro + cidade" única (o padrão fala em "set único")

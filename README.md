@@ -224,10 +224,15 @@ curl -H "Authorization: Bearer <access_token>" \
 
 ### 🗺️ Mapa Interativo
 - **Visualização geográfica** de áreas de risco
-- **Marcadores coloridos** por nível de risco:
-  - 🟢 Verde: Risco baixo
-  - 🟡 Amarelo: Risco médio
-  - 🔴 Vermelho: Risco alto
+- **Marcadores coloridos pela situação atual** de cada área, ou seja, pelo status da **última medição**:
+  - 🟢 Verde (Seguro): última medição normal (abaixo de 50 cm)
+  - 🟡 Amarelo (Alerta): última medição em alerta (50 a 79 cm)
+  - 🔴 Vermelho (Crítico): última medição crítica (80 cm ou mais)
+  - Área **sem nenhuma medição**: a cor usa o **nível de risco cadastrado** (baixo = verde, médio = amarelo, alto = vermelho)
+- Os contadores do topo ("Áreas Críticas", "Em Alerta", "Seguras") e o filtro por situação seguem a mesma regra
+- O cartão da área mostra separadamente a **situação atual** (ex.: "Normal (35,00 cm)") e o **nível de risco cadastrado** (ex.: "Alto"). Uma área de risco alto pode estar com o nível de água normal no momento.
+- **Atualização automática** a cada 30 segundos (e ao voltar para a aba do mapa), sem mudar o zoom, os filtros nem o cartão aberto: ao registrar uma medição crítica em outra aba, o marcador fica vermelho sozinho. Se a atualização falhar, os dados na tela são mantidos.
+- A API de áreas (`/api/areas/`) traz os campos somente leitura `ultimo_status`, `ultimo_nivel_agua` e `ultima_medicao_em` (todos `null` se a área não tem medição), calculados numa única consulta
 - **Popups informativos** com detalhes das áreas
 - **Centralizado** em Parauapebas-PA por padrão (`MAP_CENTER_LAT`, `MAP_CENTER_LNG` e `MAP_DEFAULT_ZOOM` em `maprisco/settings.py`)
 
@@ -466,7 +471,7 @@ O frontend usa:
 
 ### Funcionalidades:
 - Mapa centrado em Parauapebas-PA
-- Pontos coloridos por nível de risco (verde=baixo, amarelo=médio, vermelho=alto)
+- Pontos coloridos pela situação da última medição (verde=normal, amarelo=alerta, vermelho=crítico); sem medição, pelo nível de risco cadastrado
 - Popups com informações das áreas
 - Dados carregados automaticamente da API `/api/areas/`
 
@@ -562,7 +567,7 @@ Para criar um administrador: `python manage.py createsuperuser`.
 
 ### Mapa
 - Leaflet 1.9.4 servido localmente (`static/leaflet/`), sem depender de CDN.
-- Camadas: Ruas (Esri World Street Map) e Satélite (Esri), com legenda de cores por nível de risco.
+- Camadas: Ruas (Esri World Street Map) e Satélite (Esri), com legenda de cores pela situação atual (última medição).
 - No cadastro de área é possível clicar no mapa para marcar o local exato; sem marcação, a localização é obtida pelo endereço (geocodificação).
 - Ao clicar numa área, o cartão mostra a última medição e um gráfico do nível de água ao longo do tempo, com as linhas de Alerta (50 cm) e Crítico (80 cm).
 - Administradores podem editar e apagar áreas direto pelo mapa.
@@ -575,7 +580,7 @@ Para criar um administrador: `python manage.py createsuperuser`.
 - `populate_parauapebas` não apaga dados existentes (usa `get_or_create`).
 
 ### Qualidade
-- Testes automatizados em `apps/core/tests.py` e `apps/monitoramento/tests.py` (`python manage.py test`).
+- 67 testes automatizados em `apps/core/tests.py` e `apps/monitoramento/tests.py` (`python manage.py test`).
 - Login e cadastro não diferenciam maiúsculas/minúsculas no e-mail.
 - Logging configurado via variável `DJANGO_LOG_LEVEL`.
 - Imagem enviada agora é validada (`ImageField` + limite de 5 MB).

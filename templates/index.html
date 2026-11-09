@@ -52,6 +52,14 @@
             margin-bottom: 2px;
         }
 
+        .map-legend .legend-nota {
+            display: block;
+            margin-top: 4px;
+            color: #75809a;
+            font-size: 0.72rem;
+            line-height: 1.3;
+        }
+
         .legend-dot {
             display: inline-block;
             width: 11px;
@@ -396,9 +404,9 @@
         <div class="filters">
             <div class="chips" id="riskChips" role="group" aria-label="Filtrar por nível de risco">
                 <button type="button" class="chip active" data-risk="">Todas</button>
-                <button type="button" class="chip" data-risk="alto"><span class="dot" style="background:#ef4444"></span>Críticas</button>
-                <button type="button" class="chip" data-risk="medio"><span class="dot" style="background:#f59e0b"></span>Em alerta</button>
-                <button type="button" class="chip" data-risk="baixo"><span class="dot" style="background:#22c55e"></span>Seguras</button>
+                <button type="button" class="chip" data-risk="critico"><span class="dot" style="background:#ef4444"></span>Críticas</button>
+                <button type="button" class="chip" data-risk="alerta"><span class="dot" style="background:#f59e0b"></span>Em alerta</button>
+                <button type="button" class="chip" data-risk="seguro"><span class="dot" style="background:#22c55e"></span>Seguras</button>
             </div>
             <select class="form-field" id="bairroSelect">
                 <option value="">Filtrar por bairro</option>
@@ -432,7 +440,8 @@
 
             <div class="info-section">
                 <h4>Nível de Água</h4>
-                <div class="meta-line"><i class="fa-regular fa-circle-dot alto"></i> Nível de risco da área: <strong id="infoNivel">---</strong></div>
+                <div class="meta-line"><i class="fa-solid fa-droplet baixo" id="infoSituacaoIcone"></i> Situação atual: <strong id="infoSituacao">---</strong></div>
+                <div class="meta-line"><i class="fa-regular fa-flag"></i> Nível de risco cadastrado: <strong id="infoNivel">---</strong></div>
                 <div class="ultima-medicao" id="infoUltima">Carregando medições...</div>
                 <div class="history-box" id="infoHistorico" hidden>
                     <canvas id="historyChart" aria-label="Gráfico do nível de água ao longo do tempo"></canvas>
@@ -539,10 +548,11 @@
         legend.onAdd = function () {
             const div = L.DomUtil.create('div', 'map-legend');
             div.innerHTML = `
-                <strong>Nível de risco</strong>
+                <strong>Situação atual</strong>
                 <div><span class="legend-dot" style="background:#ef4444"></span>Crítico</div>
                 <div><span class="legend-dot" style="background:#f59e0b"></span>Alerta</div>
-                <div><span class="legend-dot" style="background:#22c55e"></span>Seguro</div>`;
+                <div><span class="legend-dot" style="background:#22c55e"></span>Seguro</div>
+                <small class="legend-nota">Pela última medição.<br>Sem medição: risco cadastrado.</small>`;
             return div;
         };
         legend.addTo(map);
@@ -555,6 +565,8 @@
         const infoBadge = document.getElementById('infoBadge');
         const infoCoords = document.getElementById('infoCoords');
         const infoNivel = document.getElementById('infoNivel');
+        const infoSituacao = document.getElementById('infoSituacao');
+        const infoSituacaoIcone = document.getElementById('infoSituacaoIcone');
         const rainLevel = document.getElementById('rain-level');
         const rainUpdated = document.getElementById('rain-updated');
         const rainIcon = document.getElementById('rain-icon');
@@ -564,17 +576,21 @@
         const markers = [];
         let allAreas = [];
 
-        const riskConfig = {
-            baixo: { color: '#22c55e', label: 'Seguro', badge: 'badge-baixo' },
-            medio: { color: '#f59e0b', label: 'Alerta', badge: 'badge-medio' },
-            alto: { color: '#ef4444', label: 'Crítico', badge: 'badge-alto' },
-            critico: { color: '#b91c1c', label: 'Crítico', badge: 'badge-alto' }
+        // Situação exibida no mapa (cor, popup, cartão, contadores e filtro)
+        const SITUACAO = {
+            critico: { color: '#ef4444', label: 'Crítico', badge: 'badge-alto' },
+            alerta: { color: '#f59e0b', label: 'Alerta', badge: 'badge-medio' },
+            seguro: { color: '#22c55e', label: 'Seguro', badge: 'badge-baixo' }
         };
+        const STATUS_PARA_SITUACAO = { critico: 'critico', alerta: 'alerta', normal: 'seguro' };
+        const RISCO_PARA_SITUACAO = { alto: 'critico', medio: 'alerta', baixo: 'seguro' };
 
-        function normalizeRisk(value) {
-            const v = (value || '').toLowerCase().trim();
-            if (v === 'critico') return 'critico';
-            return v;
+        // Situação atual da área: pela última medição; sem medição, pelo nível de risco cadastrado.
+        // Retorna 'critico', 'alerta' ou 'seguro'.
+        function situacaoDaArea(area) {
+            const status = (area.ultimo_status || '').toLowerCase();
+            if (STATUS_PARA_SITUACAO[status]) return STATUS_PARA_SITUACAO[status];
+            return RISCO_PARA_SITUACAO[(area.nivel_risco || '').toLowerCase()] || 'alerta';
         }
 
         function clearMarkers() {
@@ -583,21 +599,25 @@
         }
 
         function updateStats(areas) {
-            const counts = { alto: 0, medio: 0, baixo: 0 };
-            areas.forEach((area) => {
-                const risk = normalizeRisk(area.nivel_risco);
-                if (counts[risk] !== undefined) counts[risk] += 1;
-            });
-            document.getElementById('total-criticas').textContent = counts.alto;
-            document.getElementById('total-alerta').textContent = counts.medio;
-            document.getElementById('total-seguras').textContent = counts.baixo;
+            const counts = { critico: 0, alerta: 0, seguro: 0 };
+            areas.forEach((area) => { counts[situacaoDaArea(area)] += 1; });
+            document.getElementById('total-criticas').textContent = counts.critico;
+            document.getElementById('total-alerta').textContent = counts.alerta;
+            document.getElementById('total-seguras').textContent = counts.seguro;
         }
 
-        function updateDetailCard(area) {
+        function textoSituacaoAtual(area) {
+            const status = (area.ultimo_status || '').toLowerCase();
+            if (!STATUS_PARA_SITUACAO[status]) return 'Sem medição (cor pelo risco cadastrado)';
+            return `${STATUS_LABEL[status]} (${fmtNivel(area.ultimo_nivel_agua)})`;
+        }
+
+        // recarregarHistorico = false: atualização automática sem medição nova (não pisca o gráfico)
+        function updateDetailCard(area, { recarregarHistorico = true } = {}) {
             if (!area) return;
             currentArea = area;
-            const risk = normalizeRisk(area.nivel_risco);
-            const config = riskConfig[risk] || riskConfig.medio;
+            const config = SITUACAO[situacaoDaArea(area)];
+            const risk = (area.nivel_risco || '').toLowerCase();
 
             const lat = area.latitude;
             const lng = area.longitude;
@@ -614,6 +634,8 @@
 
             infoTitle.textContent = area.nome || 'Área sem nome';
             infoNivel.textContent = NIVEL_RISCO_LABEL[risk] || '---';
+            infoSituacao.textContent = textoSituacaoAtual(area);
+            infoSituacaoIcone.className = `fa-solid fa-droplet ${config.badge.replace('badge-', '')}`;
             document.getElementById('infoMedirLink').href = `/monitoramento/?area=${encodeURIComponent(area.id)}`;
 
             infoBadge.className = `info-badge ${config.badge}`;
@@ -632,7 +654,7 @@
             if (cityName) cityName.textContent = area.cidade || 'Parauapebas';
 
             infoCard.style.display = 'block';
-            loadHistorico(area);
+            if (recarregarHistorico) loadHistorico(area);
         }
 
         const NIVEL_RISCO_LABEL = { baixo: 'Baixo', medio: 'Médio', alto: 'Alto' };
@@ -649,7 +671,7 @@
                 const response = await fetch(`/api/monitoramento/?area=${encodeURIComponent(area.id)}&page_size=20`, { credentials: 'same-origin' });
                 if (!response.ok) throw new Error('Falha ao carregar medições.');
                 const registros = parseApiList(await response.json());
-                if (currentArea !== area) return; // o usuário já clicou em outra área
+                if (!currentArea || currentArea.id !== area.id) return; // o usuário já clicou em outra área
 
                 if (!registros.length) {
                     ultima.textContent = 'Nenhuma medição registrada para esta área.';
@@ -699,11 +721,12 @@
                 });
             } catch (error) {
                 console.error(error);
-                if (currentArea === area) ultima.textContent = 'Não foi possível carregar as medições.';
+                if (currentArea && currentArea.id === area.id) ultima.textContent = 'Não foi possível carregar as medições.';
             }
         }
 
-function renderAreas(areas) {
+        // manterVisao = true na atualização automática: não mexe no zoom nem troca o cartão aberto
+        function renderAreas(areas, { manterVisao = false } = {}) {
             clearMarkers();
             updateStats(areas);
             if (!areas.length) return;
@@ -711,8 +734,7 @@ function renderAreas(areas) {
             const bounds = [];
             let firstMappedArea = null;
             areas.forEach((area) => {
-                const risk = normalizeRisk(area.nivel_risco);
-                const config = riskConfig[risk] || riskConfig.medio;
+                const config = SITUACAO[situacaoDaArea(area)];
 
                 const latRaw = area.latitude;
                 const lngRaw = area.longitude;
@@ -738,48 +760,51 @@ function renderAreas(areas) {
                     weight: 2
                 }).addTo(map);
 
-                marker.bindPopup(`<strong>${esc(area.nome || 'Área sem nome')}</strong><br>Nível: ${config.label}`);
+                marker.bindPopup(`<strong>${esc(area.nome || 'Área sem nome')}</strong><br>Situação: ${config.label}`);
                 marker.on('click', () => updateDetailCard(area));
                 markers.push(marker);
             });
 
-            if (bounds.length) {
+            if (bounds.length && !manterVisao) {
                 map.fitBounds(bounds, { padding: [35, 35], maxZoom: 14 });
                 updateDetailCard(firstMappedArea);
             }
         }
 
+        // Recria a lista de bairros mantendo o bairro escolhido
         function populateBairroFilter(areas) {
             const select = document.getElementById('bairroSelect');
+            const escolhido = select.value;
             const bairros = new Set();
             areas.forEach((area) => {
                 const bairro = (area.bairro || '').trim();
                 if (bairro) bairros.add(bairro);
             });
+            select.length = 1; // mantém só "Filtrar por bairro"
             Array.from(bairros).sort().forEach((bairro) => {
                 const option = document.createElement('option');
                 option.value = bairro;
                 option.textContent = bairro;
                 select.appendChild(option);
             });
+            if (bairros.has(escolhido)) select.value = escolhido;
         }
 
         let riskFilter = '';
 
-        function applyFilters() {
+        function applyFilters({ manterVisao = false } = {}) {
             const bairro = document.getElementById('bairroSelect').value;
             const term = searchArea.value.trim().toLowerCase();
 
             const filtered = allAreas.filter((area) => {
-                const risk = normalizeRisk(area.nivel_risco);
-                const byRisk = !riskFilter || risk === riskFilter;
+                const byRisk = !riskFilter || situacaoDaArea(area) === riskFilter;
                 const byBairro = !bairro || (area.bairro || '').toLowerCase() === bairro.toLowerCase();
                 const byTerm = !term || (area.nome || '').toLowerCase().includes(term) ||
                     (area.bairro || '').toLowerCase().includes(term) ||
                     (area.cidade || '').toLowerCase().includes(term);
                 return byRisk && byBairro && byTerm;
             });
-            renderAreas(filtered);
+            renderAreas(filtered, { manterVisao });
         }
 
         function formatUpdatedAt() {
@@ -836,6 +861,43 @@ function renderAreas(areas) {
                 avisar('Não foi possível carregar as áreas no mapa.');
             }
         }
+
+        // Atualização automática: busca as áreas de novo (com a situação da última medição)
+        // sem mexer no zoom, nos filtros nem no cartão aberto. Se falhar, mantém o que está na tela.
+        const INTERVALO_ATUALIZACAO_MS = 30 * 1000;
+        let atualizando = false;
+
+        async function atualizarAreas() {
+            if (atualizando) return;
+            atualizando = true;
+            try {
+                const novas = await fetchAll('/api/areas/');
+                allAreas = novas;
+                populateBairroFilter(allAreas);
+                applyFilters({ manterVisao: true });
+
+                if (currentArea && infoCard.style.display !== 'none') {
+                    const atual = allAreas.find((a) => a.id === currentArea.id);
+                    if (atual) {
+                        // Só recarrega o gráfico se chegou medição nova
+                        const medicaoNova = atual.ultima_medicao_em !== currentArea.ultima_medicao_em;
+                        updateDetailCard(atual, { recarregarHistorico: medicaoNova });
+                    } else {
+                        infoCard.style.display = 'none'; // a área foi apagada
+                        currentArea = null;
+                    }
+                }
+            } catch (error) {
+                console.warn('Atualização automática do mapa falhou; mantendo os dados atuais.', error.message || error);
+            } finally {
+                atualizando = false;
+            }
+        }
+
+        // Ao voltar para a aba do mapa (ex.: depois de registrar uma medição em outra aba), atualiza na hora
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') atualizarAreas();
+        });
 
         document.getElementById('applyFilter').addEventListener('click', applyFilters);
         document.getElementById('riskChips').addEventListener('click', (event) => {
@@ -934,6 +996,7 @@ function renderAreas(areas) {
             loadWeatherInRealtime();
             setInterval(loadWeatherInRealtime, 60 * 1000);
             await loadAreas();
+            setInterval(atualizarAreas, INTERVALO_ATUALIZACAO_MS);
 
             // Link direto com busca: /?q=nome
             const q = new URLSearchParams(window.location.search).get('q');
