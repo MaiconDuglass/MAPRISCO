@@ -1,5 +1,6 @@
 import logging
 from rest_framework import serializers
+from rest_framework.validators import UniqueTogetherValidator
 from .models import AreaRisco, RegistroMonitoramento, Alerta
 
 MAX_FOTO_SIZE_MB = 5
@@ -17,6 +18,14 @@ class AreaRiscoSerializer(serializers.ModelSerializer):
         model = AreaRisco
         fields = '__all__'
         read_only_fields = ['data_criacao']
+
+    def get_validators(self):
+        # Mensagem amigável para a regra "rua + bairro + cidade" única (o padrão fala em "set único")
+        validators = super().get_validators()
+        for validator in validators:
+            if isinstance(validator, UniqueTogetherValidator):
+                validator.message = 'Já existe uma área cadastrada com esta rua, bairro e cidade.'
+        return validators
 
     def validate_foto(self, value):
         if value is None:

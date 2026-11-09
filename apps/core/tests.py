@@ -24,6 +24,21 @@ class AuthViewsTests(TestCase):
         for name in ('dashboard', 'alertas', 'monitoramento'):
             self.assertEqual(self.client.get(reverse(name)).status_code, 200)
 
+    def test_pages_use_local_libraries_without_cdn(self):
+        """Chart.js, Bootstrap e Font Awesome vêm do próprio servidor: a tela funciona sem internet."""
+        User.objects.create_user(username='teste@exemplo.com', password='senha123')
+        self.client.login(username='teste@exemplo.com', password='senha123')
+        for name in ('index', 'dashboard', 'alertas', 'monitoramento'):
+            html = self.client.get(reverse(name)).content.decode()
+            self.assertNotIn('cdn.jsdelivr.net', html, name)
+            self.assertNotIn('cdnjs.cloudflare.com', html, name)
+            self.assertIn('vendor/fontawesome/css/all.min.css', html, name)
+
+    def test_map_page_has_offline_notice(self):
+        html = self.client.get(reverse('index')).content.decode()
+        self.assertIn('id="mapOffline"', html)
+        self.assertIn('Sem conexão com a internet', html)
+
     def test_login_redirects_to_next(self):
         User.objects.create_user(username='teste@exemplo.com', password='senha123')
         response = self.client.post(f"{reverse('login')}?next=/alertas/", {

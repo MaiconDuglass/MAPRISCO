@@ -3,8 +3,16 @@ from django.urls import reverse
 from django.contrib.auth.models import User
 from rest_framework.test import APIClient
 from unittest.mock import patch, MagicMock
+from datetime import timedelta
 from decimal import Decimal
+from io import StringIO
 
+from django.core import mail
+from django.core.management import call_command
+from django.utils import timezone
+
+from .management.commands.cadastrar_areas_reais import AREAS_EXEMPLO, AREAS_REAIS
+from .management.commands.dados_demo import SERIES_DEMO
 from .models import AreaRisco, RegistroMonitoramento, Alerta
 
 
@@ -303,3 +311,126 @@ class GeocodingTests(TestCase):
         self.assertEqual(float(response.data['latitude']), -5.000000)
         self.assertEqual(float(response.data['longitude']), -50.000000)
         mock_geocode.assert_not_called()
+
+    def test_duplicate_area_returns_friendly_message(self):
+        """Rua + bairro + cidade repetidos: mensagem em português claro, sem 'set único'."""
+        dados = {
+            'nome': 'Rua Repetida', 'bairro': 'Centro', 'cidade': 'Parauapebas',
+            'latitude': '-6.060000', 'longitude': '-49.900000', 'nivel_risco': 'baixo',
+        }
+        self.assertEqual(self.client.post('/api/areas/', dados, format='json').status_code, 201)
+        response = self.client.post('/api/areas/', dados, format='json')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Já existe uma área cadastrada', str(response.data))
+
+
+class CadastrarAreasReaisCommandTests(TestCase):
+
+    def rodar(self, *args):
+        out = StringIO()
+        call_command('cadastrar_areas_reais', *args, stdout=out)
+        return out.getvalue()
+
+    def test_cria_as_quatro_areas_reais(self):
+        self.rodar()
+        nomes = set(AreaRisco.objects.values_list('nome', flat=True))
+        self.assertEqual(nomes, {a['nome'] for a in AREAS_REAIS})
+        liberdade = AreaRisco.objects.get(bairro='Liberdade')
+        self.assertEqual(liberdade.cidade, 'Parauapebas')
+        self.assertEqual(liberdade.nivel_risco, 'alto')
+        self.assertIsNotNone(liberdade.latitude)
+
+    def test_rodar_duas_vezes_nao_duplica(self):
+        self.rodar()
+        saida = self.rodar()
+        self.assertEqual(AreaRisco.objects.count(), 4)
+        self.assertIn('0 áreas reais criadas, 4 atualizadas', saida)
+
+    def test_limpar_exemplos_remove_so_as_ficticias(self):
+        ficticia = AreaRisco.objects.create(nome='Setor Industrial', nivel_risco='alto')
+        RegistroMonitoramento.objects.create(area=ficticia, nivel_agua=90)  # gera alerta
+        outra = AreaRisco.objects.create(nome='Rua Cadastrada pelo Usuário', bairro='Centro')
+
+        self.rodar('--limpar-exemplos')
+
+        self.assertFalse(AreaRisco.objects.filter(nome='Setor Industrial').exists())
+        self.assertEqual(RegistroMonitoramento.objects.count(), 0)
+        self.assertEqual(Alerta.objects.count(), 0)
+        self.assertTrue(AreaRisco.objects.filter(pk=outra.pk).exists())
+        self.assertEqual(AreaRisco.objects.count(), 5)
+
+    def test_sem_flag_nao_apaga_ficticias(self):
+        AreaRisco.objects.create(nome='Setor Industrial', nivel_risco='alto')
+        self.rodar()
+        self.assertTrue(AreaRisco.objects.filter(nome='Setor Industrial').exists())
+
+    def test_populate_parauapebas_nao_cria_ficticias(self):
+        call_command('populate_parauapebas', stdout=StringIO())
+        self.assertEqual(AreaRisco.objects.count(), 4)
+        self.assertFalse(AreaRisco.objects.filter(nome__in=AREAS_EXEMPLO).exists())
+
+
+@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+class DadosDemoCommandTests(TestCase):
+
+    def setUp(self):
+        call_command('cadastrar_areas_reais', stdout=StringIO())
+
+    def rodar(self):
+        out = StringIO()
+        call_command('dados_demo', stdout=out)
+        return out.getvalue()
+
+    def test_gera_medicoes_normal_alerta_e_critica(self):
+        self.rodar()
+        status = set(RegistroMonitoramento.objects.values_list('status', flat=True))
+        self.assertEqual(status, {'normal', 'alerta', 'critico'})
+        self.assertEqual(RegistroMonitoramento.objects.count(), sum(len(s) for s in SERIES_DEMO.values()))
+
+    def test_status_segue_a_regra_dos_limites(self):
+        self.rodar()
+        for registro in RegistroMonitoramento.objects.all():
+            if registro.nivel_agua >= 80:
+                self.assertEqual(registro.status, 'critico')
+            elif registro.nivel_agua >= 50:
+                self.assertEqual(registro.status, 'alerta')
+            else:
+                self.assertEqual(registro.status, 'normal')
+
+    def test_medicoes_espalhadas_pelos_ultimos_dias(self):
+        self.rodar()
+        agora = timezone.now()
+        datas = list(RegistroMonitoramento.objects.values_list('data_hora', flat=True))
+        self.assertTrue(all(agora - timedelta(days=8) < d <= agora for d in datas))
+        self.assertGreaterEqual(len({timezone.localtime(d).date() for d in datas}), 5)
+
+    def test_rodar_duas_vezes_nao_duplica(self):
+        self.rodar()
+        registros, alertas = RegistroMonitoramento.objects.count(), Alerta.objects.count()
+        saida = self.rodar()
+        self.assertEqual(RegistroMonitoramento.objects.count(), registros)
+        self.assertEqual(Alerta.objects.count(), alertas)
+        self.assertIn('0 medições e 0 alertas', saida)
+
+    def test_cria_alertas_criticos_com_um_em_aberto(self):
+        self.rodar()
+        self.assertTrue(Alerta.objects.exists())
+        self.assertFalse(Alerta.objects.exclude(nivel='critico').exists())
+        self.assertEqual(Alerta.objects.filter(resolvido=False).count(), 1)
+
+    def test_nao_envia_email(self):
+        User.objects.create_user('admin', email='admin@example.com', password='x', is_staff=True)
+        self.rodar()
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_nao_mexe_em_area_que_ja_tem_medicao(self):
+        liberdade = AreaRisco.objects.get(bairro='Liberdade')
+        RegistroMonitoramento.objects.create(area=liberdade, nivel_agua=10)
+        self.rodar()
+        self.assertEqual(liberdade.registros.count(), 1)
+
+    def test_sem_areas_reais_avisa_e_nao_cria_nada(self):
+        AreaRisco.objects.all().delete()
+        saida = self.rodar()
+        self.assertIn('cadastrar_areas_reais', saida)
+        self.assertEqual(RegistroMonitoramento.objects.count(), 0)

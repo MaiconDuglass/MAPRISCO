@@ -3,7 +3,7 @@
 {% block title %}Dashboard - MAPRISCO{% endblock %}
 {% block page_title %}Dashboard{% endblock %}
 {% block extra_css %}
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script src="{% static 'vendor/chartjs/chart.umd.min.js' %}"></script>
     <link rel="stylesheet" href="{% static 'leaflet/leaflet.css' %}">
     <style>
         .stats {
@@ -535,9 +535,10 @@
                 document.getElementById('total-alertas').textContent = alertasData.count ?? parseApiList(alertasData).length;
                 document.getElementById('total-registros').textContent = registrosData.count ?? parseApiList(registrosData).length;
 
-                renderChart(areas);
                 renderRegistrosTable(parseApiList(registrosData));
                 renderAlertasTable(parseApiList(alertasData));
+                // Um problema no gráfico não pode esconder as tabelas
+                try { renderChart(areas); } catch (chartError) { console.error(chartError); }
             } catch (error) {
                 console.error(error);
                 document.getElementById('registros-body').innerHTML = '<tr><td colspan="4" class="loading">Erro ao carregar.</td></tr>';
@@ -588,9 +589,16 @@
                 return;
             }
             pickMap = L.map('pickMap').setView([{{ MAP_CENTER_LAT }}, {{ MAP_CENTER_LNG }}], 13);
+            let falhas = 0;
             L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
                 attribution: '&copy; Esri',
                 maxZoom: 19
+            }).on('tileerror', () => {
+                falhas += 1;
+                // Sem internet: avisa, mas o cadastro continua funcionando
+                if (falhas === 3 && !pickMarker) {
+                    pickText.textContent = 'Sem conexão: o mapa não carregou. Você ainda pode salvar a área, mas a localização pelo endereço depende da internet.';
+                }
             }).addTo(pickMap);
             pickMap.on('click', (event) => setPickedPoint(event.latlng));
         }

@@ -47,7 +47,7 @@ MAPRISCO/
 │       ├── pagination.py    # Paginação da API (?page_size=)
 │       ├── geocoding.py     # Busca de coordenadas pelo endereço (Nominatim)
 │       ├── admin.py         # Painel administrativo
-│       ├── management/      # Comandos (populate_parauapebas, geocodificar_areas)
+│       ├── management/      # Comandos (cadastrar_areas_reais, dados_demo, populate_parauapebas, geocodificar_areas)
 │       └── migrations/      # Migrações do banco
 ├── static/                   # CSS, JS, Leaflet e logo
 │   └── js/comum.js          # Funções JavaScript compartilhadas pelas telas
@@ -144,6 +144,16 @@ python manage.py migrate
 python manage.py createsuperuser
 ```
 
+### Passo 6.1: Áreas reais e dados de demonstração
+```bash
+# Cadastra as 4 áreas reais de risco de Parauapebas (ver "Áreas monitoradas")
+python manage.py cadastrar_areas_reais
+
+# Gera medições e alertas dos últimos 7 dias, para o dashboard e os gráficos não ficarem vazios
+python manage.py dados_demo
+```
+Detalhes na seção "Comandos de gerenciamento".
+
 ### Passo 7: Executar Servidor
 ```bash
 python manage.py runserver
@@ -153,6 +163,37 @@ python manage.py runserver
 - **Interface Web**: http://127.0.0.1:8000/
 - **Admin Django**: http://127.0.0.1:8000/admin/
 - **API REST**: http://127.0.0.1:8000/api/
+
+## 📍 Áreas monitoradas
+
+O sistema monitora 4 áreas reais de risco de alagamento em Parauapebas-PA. São bairros citados pela
+imprensa local como atingidos pelas cheias do rio Parauapebas e de igarapés. As coordenadas são o centro
+aproximado de cada bairro no OpenStreetMap (Nominatim).
+
+| Área | Bairro | Nível de risco | Motivo |
+|------|--------|----------------|--------|
+| Margem do Rio Parauapebas - Liberdade | Liberdade | Alto | Às margens do rio; um dos mais atingidos em dez/2021 e foco de vistorias da Defesa Civil em mar/2025 |
+| Margem do Rio Parauapebas - Primavera | Primavera | Alto | Bairro ribeirinho com casas atingidas nas cheias de 2021 e 2025 |
+| Margem do Rio Parauapebas - União | União | Alto | Próximo ao rio; entre os mais afetados em 2021 e 2025 |
+| Igarapé Ilha do Coco - Novo Brasil | Novo Brasil | Médio | Transbordamento do igarapé Ilha do Coco em mar/2025 |
+
+**Fontes:**
+- DOL, 30/12/2021 — [Chuvas colocam Parauapebas sob risco de inundação](https://dol.com.br/carajas/cidades/parauapebas/689988/chuvas-colocam-parauapebas-sob-risco-de-inundacao)
+- Diário do Pará, 06/03/2025 — [Defesa Civil emite alerta laranja para inundações no rio em Parauapebas](https://diariodopara.com.br/para/defesa-civil-emite-alerta-laranja-para-inundacoes-no-rio-em-parauapebas)
+- SGB/CPRM — [Setorização de risco de Parauapebas](https://rigeo.sgb.gov.br/handle/doc/18347)
+
+> As medições de nível de água geradas pelo comando `dados_demo` são **simuladas**, para demonstração.
+> O sistema não está ligado a sensores reais.
+
+## 🛠️ Comandos de gerenciamento
+
+| Comando | O que faz |
+|---------|-----------|
+| `python manage.py cadastrar_areas_reais` | Cadastra (ou atualiza) as 4 áreas reais. Pode ser rodado várias vezes sem duplicar. |
+| `python manage.py cadastrar_areas_reais --limpar-exemplos` | Além disso, apaga as 6 áreas fictícias antigas (Bacia do Rio Itacaiúnas, Área Urbana Centro, Vale do Rio Parauapebas, Região de Marabá, Reserva Ambiental Sul e Setor Industrial), **com suas medições e alertas**. |
+| `python manage.py dados_demo` | Gera medições simuladas dos últimos 7 dias para as áreas reais, com níveis normal (< 50 cm), alerta (50 a 79 cm) e crítico (≥ 80 cm), e os alertas correspondentes (o mais recente fica em aberto). Áreas que já têm medições são ignoradas, então não duplica dados. Não envia e-mails. |
+| `python manage.py populate_parauapebas` | Atalho mantido por compatibilidade: chama `cadastrar_areas_reais`. |
+| `python manage.py geocodificar_areas` | Preenche latitude/longitude das áreas sem coordenadas, pelo endereço (Nominatim). |
 
 ## 🔐 Sistema de Autenticação
 
@@ -188,7 +229,7 @@ curl -H "Authorization: Bearer <access_token>" \
   - 🟡 Amarelo: Risco médio
   - 🔴 Vermelho: Risco alto
 - **Popups informativos** com detalhes das áreas
-- **Centralizado** em São Paulo por padrão
+- **Centralizado** em Parauapebas-PA por padrão (`MAP_CENTER_LAT`, `MAP_CENTER_LNG` e `MAP_DEFAULT_ZOOM` em `maprisco/settings.py`)
 
 ### 📈 Dashboard Estatístico
 - **Cards de métricas**:
@@ -208,7 +249,7 @@ curl -H "Authorization: Bearer <access_token>" \
 | `/api/alertas/` | GET/POST | Sistema de alertas |
 
 ### ⚡ Lógica Automática
-- **Detecção crítica**: Quando nível de água > 80
+- **Detecção crítica**: quando o nível de água atinge 80 cm ou mais
 - **Atualização automática** do status para "crítico"
 - **Geração de alertas** críticos, com aviso por e-mail aos administradores
 - **Processamento em tempo real** no `save()` do modelo `RegistroMonitoramento`
@@ -220,28 +261,36 @@ curl -H "Authorization: Bearer <access_token>" \
    - POST `/api/token/` com credenciais
    - Copiar access_token
 
-2. **Criar área de teste**:
+2. **Consultar uma área real** (bairro Liberdade, às margens do rio Parauapebas):
+   ```
+   GET /api/areas/?search=Liberdade
+   ```
+   Anote o `id` retornado (ele varia conforme o banco).
+
+3. **Criar uma área**:
    ```json
    POST /api/areas/
    {
-     "nome": "Rio Tietê",
-     "latitude": -23.550520,
-     "longitude": -46.633308,
+     "nome": "Margem do Rio Parauapebas - Liberdade",
+     "bairro": "Liberdade",
+     "cidade": "Parauapebas",
+     "latitude": -6.081236,
+     "longitude": -49.910355,
      "nivel_risco": "alto",
-     "descricao": "Área crítica de monitoramento"
+     "descricao": "Bairro às margens do rio Parauapebas, atingido nas cheias de 2021 e 2025."
    }
    ```
+   *Observação*: se a área já estiver cadastrada (rua + bairro + cidade), a API responde 400 por duplicidade.
 
-3. **Criar registro crítico**:
+4. **Criar registro crítico** (use o `id` da área Liberdade obtido no passo 2):
    ```json
    POST /api/monitoramento/
    {
-     "area": 1,
-     "nivel_agua": 85.5,
-     "status": "normal"
+     "area": <id_da_area_liberdade>,
+     "nivel_agua": 85.5
    }
    ```
-   *Resultado*: Status alterado para "crítico" + alerta criado
+   *Resultado*: status calculado como "crítico" + alerta criado automaticamente
 
 ### Teste da Interface Web
 1. **Registro**: Criar nova conta
@@ -254,22 +303,25 @@ curl -H "Authorization: Bearer <access_token>" \
 ### Modelos de Dados
 
 #### AreaRisco
-- `nome`: Nome da área
+- `nome`: Rua / endereço da área
+- `bairro` e `cidade`: Localização (cidade padrão: Parauapebas)
 - `latitude/longitude`: Coordenadas geográficas
+- `foto`: Foto opcional (até 5 MB)
 - `nivel_risco`: Classificação (baixo/médio/alto)
 - `descricao`: Descrição opcional
 - `data_criacao`: Timestamp
 
 #### RegistroMonitoramento
 - `area`: Referência à área
-- `nivel_agua`: Medição em metros
-- `status`: Estado atual
+- `nivel_agua`: Medição em centímetros
+- `status`: normal, alerta ou crítico (calculado automaticamente)
 - `data_hora`: Timestamp
 
 #### Alerta
 - `area`: Área relacionada
 - `mensagem`: Conteúdo do alerta
 - `nivel`: Severidade
+- `resolvido`: Se o alerta já foi tratado
 - `data_hora`: Timestamp
 
 ### Configurações Importantes
@@ -311,11 +363,10 @@ psycopg2-binary==2.9.7
 - ✅ **Georreferenciamento** integrado
 
 ### Melhorias Futuras
-- 🔄 **Notificações push** (email/SMS)
+- 🔄 **Notificações por SMS/push** (o aviso por e-mail já existe)
 - 🔄 **Integração IoT** com sensores reais
 - 🔄 **Relatórios PDF** automáticos
-- 🔄 **API de clima** para previsões
-- 🔄 **Testes automatizados** (unittest/pytest)
+- 🔄 **Previsão de chuva** (hoje o mapa mostra a chuva atual via Open-Meteo)
 - 🔄 **Deploy em produção** (Docker/Heroku)
 
 ### Tecnologias Complementares
@@ -375,7 +426,8 @@ O sistema inclui autenticação completa:
 - **Refresh token**: `POST /api/token/refresh/` com `refresh` token
 
 ### Proteção da API
-Todas as rotas da API (`/api/*`) requerem autenticação JWT no header:
+A leitura (GET) é pública. Para cadastrar, alterar, apagar ou resolver alertas é preciso estar autenticado
+(sessão do navegador ou JWT no header), conforme a tabela de permissões em "Melhorias Implementadas":
 ```
 Authorization: Bearer <access_token>
 ```
@@ -402,7 +454,7 @@ curl -H "Authorization: Bearer <access_token>" \
 - POST para `/api/token/` para obter tokens
 - Adicionar header `Authorization: Bearer <access_token>` nas outras requests
 
-**Nota**: O frontend atual precisa ser atualizado para incluir autenticação JWT nas requests da API.
+**Nota**: as telas web usam a sessão do Django (login normal); o JWT é usado por clientes externos (Postman, curl, apps).
 
 ## Frontend
 
@@ -413,7 +465,7 @@ O frontend usa:
 - **Leaflet.js**: Biblioteca para mapas interativos
 
 ### Funcionalidades:
-- Mapa centrado em São Paulo
+- Mapa centrado em Parauapebas-PA
 - Pontos coloridos por nível de risco (verde=baixo, amarelo=médio, vermelho=alto)
 - Popups com informações das áreas
 - Dados carregados automaticamente da API `/api/areas/`
@@ -441,7 +493,6 @@ A API está disponível em `/api/` com os seguintes endpoints:
 - `/api/areas/` - CRUD para Áreas de Risco
 - `/api/monitoramento/` - CRUD para Registros de Monitoramento
 - `/api/alertas/` - CRUD para Alertas
-- `/api/examples/` - CRUD para Exemplos (do app core)
 
 ### Testando a API
 
@@ -454,17 +505,19 @@ Acesse http://127.0.0.1:8000/api/ para ver a interface do DRF.
 3. Para criar: POST http://127.0.0.1:8000/api/areas/ com JSON body, ex.:
    ```json
    {
-     "nome": "Área 1",
-     "latitude": -23.550520,
-     "longitude": -46.633308,
+     "nome": "Igarapé Ilha do Coco - Novo Brasil",
+     "bairro": "Novo Brasil",
+     "cidade": "Parauapebas",
+     "latitude": -6.090191,
+     "longitude": -49.867560,
      "nivel_risco": "medio",
-     "descricao": "Descrição da área"
+     "descricao": "Alagamento pelo transbordamento do igarapé Ilha do Coco (mar/2025)."
    }
    ```
 4. Para atualizar: PUT http://127.0.0.1:8000/api/areas/1/
 5. Para deletar: DELETE http://127.0.0.1:8000/api/areas/1/
 
-Use Content-Type: application/json nos headers.
+Use Content-Type: application/json nos headers. Para PUT/DELETE é preciso ser administrador.
 
 ## Lógica Automática
 

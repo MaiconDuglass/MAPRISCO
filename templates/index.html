@@ -157,6 +157,29 @@
             min-height: 430px;
         }
 
+        .map-offline {
+            position: absolute;
+            left: 50%;
+            bottom: 16px;
+            transform: translateX(-50%);
+            z-index: 850;
+            width: min(460px, calc(100% - 32px));
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            background: #fff8e6;
+            border: 1px solid #f5d27a;
+            color: #6b4e00;
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-size: 0.85rem;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+        }
+
+        .map-offline[hidden] { display: none; }
+        .map-offline i { margin-top: 3px; }
+        .map-offline strong { display: block; }
+
         .info-card {
             position: absolute;
             right: 16px;
@@ -326,6 +349,7 @@
             .stat-card > i { display: none; }
             .filters { grid-template-columns: 1fr; }
             .info-card { position: static; width: calc(100% - 24px); margin: 12px; }
+            .map-offline { position: static; transform: none; width: auto; margin: 12px; }
             .info-actions { flex-direction: column; }
             .info-actions .btn-detail,
             .info-actions .btn-edit,
@@ -386,6 +410,13 @@
 
     <div class="map-wrap">
         <div id="map"></div>
+        <div class="map-offline" id="mapOffline" role="status" hidden>
+            <i class="fa-solid fa-wifi"></i>
+            <div>
+                <strong>Sem conexão com a internet</strong>
+                <span>O fundo do mapa (ruas e satélite) não pôde ser carregado. As áreas de risco continuam marcadas nas posições corretas.</span>
+            </div>
+        </div>
         <article class="info-card" id="infoCard" style="display:none;">
             <div class="info-head">
                 <div>
@@ -460,7 +491,7 @@
 
 {% block scripts %}
     <script src="{% static 'leaflet/leaflet.js' %}"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script src="{% static 'vendor/chartjs/chart.umd.min.js' %}"></script>
     <script>
         const map = L.map('map', {
             zoomControl: true,
@@ -482,6 +513,26 @@
 
         ruasLayer.addTo(map);
         L.control.layers({ 'Ruas': ruasLayer, 'Satélite': satelliteLayer }, null, { position: 'topleft', collapsed: false }).addTo(map);
+
+        // Sem internet o fundo do mapa (ruas/satélite) não carrega: mostra um aviso amigável.
+        // As áreas continuam aparecendo, porque vêm do próprio servidor do MAPRISCO.
+        const mapOffline = document.getElementById('mapOffline');
+        let tileFalhas = 0;
+        function setMapOffline(offline) {
+            mapOffline.hidden = !offline;
+        }
+        [ruasLayer, satelliteLayer].forEach((layer) => {
+            layer.on('tileerror', () => { tileFalhas += 1; if (tileFalhas >= 3) setMapOffline(true); });
+            layer.on('tileload', () => { tileFalhas = 0; setMapOffline(false); });
+        });
+        if (!navigator.onLine) setMapOffline(true);
+        window.addEventListener('offline', () => setMapOffline(true));
+        window.addEventListener('online', () => {
+            tileFalhas = 0;
+            ruasLayer.redraw();
+            if (map.hasLayer(satelliteLayer)) satelliteLayer.redraw();
+            loadWeatherInRealtime();
+        });
 
         // Legenda com o significado das cores dos marcadores
         const legend = L.control({ position: 'bottomleft' });
@@ -742,6 +793,7 @@ function renderAreas(areas) {
         }
 
         let lastRain = null;
+        let lastRainAt = null;
 
         async function loadWeatherInRealtime() {
             const lat = -6.0686;
@@ -757,18 +809,19 @@ function renderAreas(areas) {
                 const rainMm = Number(data?.current?.rain ?? 0);
                 const safeRain = Number.isFinite(rainMm) ? rainMm : 0;
                 lastRain = safeRain;
+                lastRainAt = formatUpdatedAt();
                 rainLevel.textContent = `${safeRain.toFixed(1).replace('.', ',')} mm`;
-                rainUpdated.textContent = `Atualizado ${formatUpdatedAt()}`;
+                rainUpdated.textContent = `Atualizado às ${lastRainAt}`;
                 setRainVisual(safeRain);
             } catch (error) {
-                console.error(error);
-                // Mantem a ultima medicao conhecida se uma atualizacao falhar.
+                console.warn('Open-Meteo indisponível:', error.message || error);
+                // Mantém a última medição conhecida se uma atualização falhar.
                 if (lastRain === null) {
                     rainLevel.textContent = '-- mm';
-                    rainUpdated.textContent = 'Sem dados no momento';
+                    rainUpdated.textContent = 'Sem conexão com o serviço de chuva';
                     rainIcon.className = 'fa-solid fa-cloud fa-xl';
                 } else {
-                    rainUpdated.textContent = `Última atualização ${formatUpdatedAt()} (sem internet)`;
+                    rainUpdated.textContent = `Dado das ${lastRainAt} (sem conexão)`;
                 }
             }
         }
