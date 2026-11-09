@@ -77,6 +77,14 @@ class AuthViewsTests(TestCase):
         self.assertContains(response, 'Olá, João')
         self.assertContains(response, '<span class="notify-badge">1</span>', html=True)
 
+    def test_user_without_name_shows_part_before_at(self):
+        """Conta criada pelo createsuperuser (sem nome) não mostra o e-mail inteiro."""
+        User.objects.create_superuser('fulano.silva@gmail.com', 'fulano.silva@gmail.com', 'senha123')
+        self.client.login(username='fulano.silva@gmail.com', password='senha123')
+        html = self.client.get(reverse('dashboard')).content.decode()
+        self.assertIn('Olá, Fulano.silva', html)
+        self.assertNotIn('Gmail.Com', html)
+
     def test_menu_has_cadastrar_area_link(self):
         response = self.client.get(reverse('index'))
         self.assertContains(response, 'href="/dashboard/?nova=1"')

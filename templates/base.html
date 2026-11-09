@@ -550,7 +550,7 @@
             <div class="sidebar-user">
                 <div class="avatar"><i class="fa-solid fa-user"></i></div>
                 <div class="user-meta">
-                    <div class="user-name" title="{{ user.get_full_name|default:user.username }}">{% if user.is_authenticated %}{{ user.first_name|default:user.username|title }}{% else %}Visitante{% endif %}</div>
+                    <div class="user-name" title="{{ user.get_full_name|default:user.username }}">{% if user.is_authenticated %}{{ user_first_name }}{% else %}Visitante{% endif %}</div>
                     {% if user.is_authenticated %}
                     <a class="user-action" href="{% url 'logout' %}"><i class="fa-solid fa-right-from-bracket"></i> Sair</a>
                     {% else %}
