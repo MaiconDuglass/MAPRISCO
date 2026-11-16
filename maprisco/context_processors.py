@@ -18,7 +18,10 @@ def navbar(request):
 
     user = getattr(request, 'user', None)
     first_name = ''
+    open_alerts_count = 0
     if user is not None and user.is_authenticated:
+        # O sino de alertas só aparece para quem está logado
+        open_alerts_count = Alerta.objects.filter(resolvido=False).count()
         if user.first_name.strip():
             first_name = user.first_name.strip().split()[0].title()
         else:
@@ -26,5 +29,5 @@ def navbar(request):
             first_name = user.username.split('@')[0].strip().capitalize() or user.username
     return {
         'user_first_name': first_name,
-        'open_alerts_count': Alerta.objects.filter(resolvido=False).count(),
+        'open_alerts_count': open_alerts_count,
     }

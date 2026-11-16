@@ -1,33 +1,24 @@
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 
-def _is_staff(user):
+def eh_administrador(user):
+    """True se o usuário está logado e é administrador (is_staff, Defesa Civil)."""
     return bool(user and user.is_authenticated and user.is_staff)
 
 
-class CidadaoCadastraAdminGerencia(BasePermission):
+class LeituraPublicaEscritaSomenteAdmin(BasePermission):
     """
-    Leitura: pública.
-    Cadastro (POST): qualquer usuário logado.
-    Alterar ou apagar (PUT, PATCH, DELETE): somente administradores (Defesa Civil).
+    Leitura (GET, HEAD, OPTIONS): pública, inclusive para visitantes sem login.
+    Cadastrar, alterar, apagar ou resolver (POST, PUT, PATCH, DELETE): somente administradores.
+
+    Usada nas áreas de risco, nas medições e nos alertas. Assim um usuário comum
+    não consegue criar áreas falsas nem registrar medições que gerariam alertas
+    críticos falsos (e e-mails para a Defesa Civil).
     """
+
+    message = 'Esta função é exclusiva da administração.'
 
     def has_permission(self, request, view):
         if request.method in SAFE_METHODS:
             return True
-        if request.method == 'POST':
-            return bool(request.user and request.user.is_authenticated)
-        return _is_staff(request.user)
-
-
-class SomenteAdminAltera(BasePermission):
-    """
-    Leitura: pública.
-    Qualquer alteração (inclusive resolver alertas): somente administradores.
-    Os alertas são gerados automaticamente pelo sistema a partir das medições.
-    """
-
-    def has_permission(self, request, view):
-        if request.method in SAFE_METHODS:
-            return True
-        return _is_staff(request.user)
+        return eh_administrador(request.user)

@@ -5,20 +5,44 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.utils.http import url_has_allowed_host_and_scheme
+from functools import wraps
+
 from .forms import RegistrationForm
+
+MENSAGEM_SO_ADMIN = 'Esta função é exclusiva da administração.'
+
+
+def admin_required(view):
+    """
+    Página exclusiva do administrador (is_staff).
+    Visitante: vai para o login. Usuário comum: volta para o mapa com um aviso.
+    """
+    @wraps(view)
+    @login_required
+    def _view(request, *args, **kwargs):
+        if not request.user.is_staff:
+            messages.info(request, MENSAGEM_SO_ADMIN)
+            return redirect('index')
+        return view(request, *args, **kwargs)
+    return _view
+
 
 def index(request):
     return render(request, 'index.html')
 
 @login_required
 def dashboard(request):
+    # ?nova=1 abre o cadastro de área, que é só do administrador
+    if 'nova' in request.GET and not request.user.is_staff:
+        messages.info(request, MENSAGEM_SO_ADMIN)
+        return redirect('index')
     return render(request, 'dashboard.html')
 
 @login_required
 def alertas(request):
     return render(request, 'alertas.html')
 
-@login_required
+@admin_required
 def monitoramento(request):
     return render(request, 'monitoramento.html')
 

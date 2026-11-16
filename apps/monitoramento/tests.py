@@ -116,14 +116,54 @@ class ApiTests(TestCase):
         })
         self.assertIn(response.status_code, (401, 403))
 
-    def test_authenticated_can_create_area(self):
+    def test_common_user_cannot_create_area(self):
+        """Usuário comum não cadastra área (evita áreas falsas)."""
         self.client.force_authenticate(user=self.user)
         response = self.client.post(reverse('arearisco-list'), {
-            'nome': 'Área autenticada',
+            'nome': 'Área falsa',
             'bairro': 'Centro',
             'nivel_risco': 'baixo',
         })
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(AreaRisco.objects.filter(nome='Área falsa').exists())
+
+    def test_admin_can_create_area(self):
+        admin = User.objects.create_user(username='admin', password='senha123', is_staff=True)
+        self.client.force_authenticate(user=admin)
+        response = self.client.post(reverse('arearisco-list'), {
+            'nome': 'Área do administrador',
+            'bairro': 'Centro',
+            'nivel_risco': 'baixo',
+            'latitude': '-6.06',
+            'longitude': '-49.90',
+        })
         self.assertEqual(response.status_code, 201)
+
+    def test_common_user_cannot_create_medicao(self):
+        """Usuário comum não registra medição (evita alerta crítico falso e e-mail à Defesa Civil)."""
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post('/api/monitoramento/', {'area': self.area.pk, 'nivel_agua': 95})
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(RegistroMonitoramento.objects.filter(area=self.area).exists())
+        self.assertFalse(Alerta.objects.filter(area=self.area, nivel='critico').exists())
+
+    def test_visitor_cannot_create_medicao(self):
+        response = self.client.post('/api/monitoramento/', {'area': self.area.pk, 'nivel_agua': 95})
+        self.assertIn(response.status_code, (401, 403))
+        self.assertFalse(RegistroMonitoramento.objects.filter(area=self.area).exists())
+
+    def test_common_user_cannot_change_or_delete_medicao(self):
+        registro = RegistroMonitoramento.objects.create(area=self.area, nivel_agua=10)
+        self.client.force_authenticate(user=self.user)
+        url = f'/api/monitoramento/{registro.pk}/'
+        self.assertEqual(self.client.patch(url, {'nivel_agua': 99}).status_code, 403)
+        self.assertEqual(self.client.delete(url).status_code, 403)
+        self.assertTrue(RegistroMonitoramento.objects.filter(pk=registro.pk).exists())
+
+    def test_areas_e_medicoes_tem_leitura_publica(self):
+        RegistroMonitoramento.objects.create(area=self.area, nivel_agua=10)
+        self.assertEqual(self.client.get('/api/monitoramento/').status_code, 200)
+        self.assertEqual(self.client.get('/api/areas/').status_code, 200)
 
     def test_resolver_action_marks_alert_as_resolved(self):
         admin = User.objects.create_user(username='admin', password='senha123', is_staff=True)
@@ -169,7 +209,8 @@ class ApiTests(TestCase):
         self.assertFalse(AreaRisco.objects.filter(pk=self.area.pk).exists())
 
     def test_registro_creates_alert_via_api(self):
-        self.client.force_authenticate(user=self.user)
+        admin = User.objects.create_user(username='admin', password='senha123', is_staff=True)
+        self.client.force_authenticate(user=admin)
         response = self.client.post('/api/monitoramento/', {
             'area': self.area.pk,
             'nivel_agua': 88,
@@ -481,8 +522,8 @@ class SituacaoAtualDaAreaApiTests(TestCase):
         self.medir(35, horas_atras=2)
         self.assertEqual(self.detalhe()['ultimo_status'], 'normal')
 
-        user = User.objects.create_user(username='cidadao@exemplo.com', password='senha123')
-        self.client.force_authenticate(user)
+        admin = User.objects.create_user(username='admin@exemplo.com', password='senha123', is_staff=True)
+        self.client.force_authenticate(admin)
         response = self.client.post('/api/monitoramento/', {'area': self.area.pk, 'nivel_agua': '90'}, format='json')
         self.assertEqual(response.status_code, 201)
 
@@ -521,8 +562,8 @@ class SituacaoAtualDaAreaApiTests(TestCase):
         self.assertIsNone(response.data['ultimo_status'])
 
     def test_resposta_do_cadastro_traz_os_campos(self):
-        user = User.objects.create_user(username='cidadao@exemplo.com', password='senha123')
-        self.client.force_authenticate(user)
+        admin = User.objects.create_user(username='admin@exemplo.com', password='senha123', is_staff=True)
+        self.client.force_authenticate(admin)
         response = self.client.post('/api/areas/', {
             'nome': 'Rua Nova', 'bairro': 'Primavera', 'cidade': 'Parauapebas',
             'latitude': '-6.06', 'longitude': '-49.91', 'nivel_risco': 'baixo',
@@ -530,3 +571,45 @@ class SituacaoAtualDaAreaApiTests(TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertIn('ultimo_status', response.data)
         self.assertIsNone(response.data['ultimo_status'])
+
+
+class CriarUsuarioDemoCommandTests(TestCase):
+    """Comando criar_usuario_demo: usuário comum, senha digitada no terminal."""
+
+    def rodar(self, senha, confirmacao=None):
+        respostas = [senha, senha if confirmacao is None else confirmacao]
+        out = StringIO()
+        with patch('getpass.getpass', side_effect=respostas):
+            call_command('criar_usuario_demo', stdout=out)
+        return out.getvalue()
+
+    def test_cria_usuario_comum_com_nome_e_email(self):
+        saida = self.rodar('DemoForte#2026')
+        user = User.objects.get(username='usuario.demo@maprisco.local')
+        self.assertEqual(user.email, 'usuario.demo@maprisco.local')
+        self.assertEqual(user.first_name, 'Usuário Demo')
+        self.assertFalse(user.is_staff)
+        self.assertFalse(user.is_superuser)
+        self.assertTrue(user.check_password('DemoForte#2026'))
+        self.assertIn('criado', saida)
+
+    def test_rodar_de_novo_atualiza_senha_e_tira_admin(self):
+        self.rodar('DemoForte#2026')
+        User.objects.filter(username='usuario.demo@maprisco.local').update(is_staff=True)
+        self.rodar('OutraSenha#2026')
+        self.assertEqual(User.objects.filter(username='usuario.demo@maprisco.local').count(), 1)
+        user = User.objects.get(username='usuario.demo@maprisco.local')
+        self.assertFalse(user.is_staff)
+        self.assertTrue(user.check_password('OutraSenha#2026'))
+
+    def test_senhas_diferentes_nao_cria(self):
+        from django.core.management.base import CommandError
+        with self.assertRaises(CommandError):
+            self.rodar('DemoForte#2026', 'Diferente#2026')
+        self.assertFalse(User.objects.filter(username='usuario.demo@maprisco.local').exists())
+
+    def test_senha_fraca_nao_cria(self):
+        from django.core.management.base import CommandError
+        with self.assertRaises(CommandError):
+            self.rodar('123')
+        self.assertFalse(User.objects.filter(username='usuario.demo@maprisco.local').exists())

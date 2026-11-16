@@ -43,11 +43,11 @@ MAPRISCO/
 │       ├── models.py        # Áreas, medições e alertas (lógica automática no save)
 │       ├── views.py         # ViewSets da API REST
 │       ├── serializers.py   # Serializers da API (com geocodificação)
-│       ├── permissions.py   # Permissões por perfil (cidadão x administrador)
+│       ├── permissions.py   # Permissões da API (leitura pública, escrita só do administrador)
 │       ├── pagination.py    # Paginação da API (?page_size=)
 │       ├── geocoding.py     # Busca de coordenadas pelo endereço (Nominatim)
 │       ├── admin.py         # Painel administrativo
-│       ├── management/      # Comandos (cadastrar_areas_reais, dados_demo, populate_parauapebas, geocodificar_areas)
+│       ├── management/      # Comandos (cadastrar_areas_reais, dados_demo, criar_usuario_demo, populate_parauapebas, geocodificar_areas)
 │       └── migrations/      # Migrações do banco
 ├── static/                   # CSS, JS, Leaflet e logo
 │   └── js/comum.js          # Funções JavaScript compartilhadas pelas telas
@@ -151,6 +151,9 @@ python manage.py cadastrar_areas_reais
 
 # Gera medições e alertas dos últimos 7 dias, para o dashboard e os gráficos não ficarem vazios
 python manage.py dados_demo
+
+# Cria o usuário comum de demonstração (a senha é digitada no terminal)
+python manage.py criar_usuario_demo
 ```
 Detalhes na seção "Comandos de gerenciamento".
 
@@ -192,6 +195,7 @@ aproximado de cada bairro no OpenStreetMap (Nominatim).
 | `python manage.py cadastrar_areas_reais` | Cadastra (ou atualiza) as 4 áreas reais. Pode ser rodado várias vezes sem duplicar. |
 | `python manage.py cadastrar_areas_reais --limpar-exemplos` | Além disso, apaga as 6 áreas fictícias antigas (Bacia do Rio Itacaiúnas, Área Urbana Centro, Vale do Rio Parauapebas, Região de Marabá, Reserva Ambiental Sul e Setor Industrial), **com suas medições e alertas**. |
 | `python manage.py dados_demo` | Gera medições simuladas dos últimos 7 dias para as áreas reais, com níveis normal (< 50 cm), alerta (50 a 79 cm) e crítico (≥ 80 cm), e os alertas correspondentes (o mais recente fica em aberto). Áreas que já têm medições são ignoradas, então não duplica dados. Não envia e-mails. |
+| `python manage.py criar_usuario_demo` | Cria (ou atualiza) o **usuário comum** de demonstração: e-mail `usuario.demo@maprisco.local`, nome "Usuário Demo". A senha é pedida no terminal (duas vezes) e passa pelas regras de senha do Django; ela não fica no código. O usuário nunca é administrador: se já existir, a senha e o nome são atualizados e ele volta a ser usuário comum. |
 | `python manage.py populate_parauapebas` | Atalho mantido por compatibilidade: chama `cadastrar_areas_reais`. |
 | `python manage.py geocodificar_areas` | Preenche latitude/longitude das áreas sem coordenadas, pelo endereço (Nominatim). |
 
@@ -248,10 +252,10 @@ curl -H "Authorization: Bearer <access_token>" \
 ### 🔄 API REST Completa
 | Endpoint | Método | Descrição |
 |----------|--------|-----------|
-| `/api/areas/` | GET/POST | Listar/Criar áreas |
-| `/api/areas/<id>/` | GET/PUT/DELETE | Detalhar/Atualizar/Deletar área (alterar e deletar: só administrador) |
-| `/api/monitoramento/` | GET/POST | Registros de monitoramento |
-| `/api/alertas/` | GET/POST | Sistema de alertas |
+| `/api/areas/` | GET/POST | Listar (público) / Criar áreas (só administrador) |
+| `/api/areas/<id>/` | GET/PUT/PATCH/DELETE | Detalhar (público) / Atualizar ou apagar área (só administrador) |
+| `/api/monitoramento/` | GET/POST | Listar (público) / Registrar medição (só administrador) |
+| `/api/alertas/` | GET | Listar alertas (público); alterar e resolver: só administrador |
 
 ### ⚡ Lógica Automática
 - **Detecção crítica**: quando o nível de água atinge 80 cm ou mais
@@ -302,6 +306,7 @@ curl -H "Authorization: Bearer <access_token>" \
 2. **Login**: Acessar sistema
 3. **Mapa**: Visualizar áreas plotadas
 4. **Dashboard**: Ver estatísticas atualizadas
+5. **Perfis**: comparar visitante (aba anônima), usuário demo (`criar_usuario_demo`) e administrador, conforme a tabela "Permissões por perfil"
 
 ## 📚 Documentação Técnica
 
@@ -542,8 +547,8 @@ Isso é implementado no método `save()` do modelo `RegistroMonitoramento` (`app
 ## Melhorias Implementadas
 
 ### Páginas Web
-- `/alertas/`: Central de alertas com busca, filtros por nível/status e ação "marcar como resolvido".
-- `/monitoramento/`: Cadastro de medições de nível de água (classificação automática) e histórico completo, com paginação e filtro por área.
+- `/alertas/`: Central de alertas com busca, filtros por nível/status e ação "marcar como resolvido" (só administrador).
+- `/monitoramento/`: (só administrador) Cadastro de medições de nível de água (classificação automática) e histórico completo, com paginação e filtro por área.
 - `/admin/`: Painel de administração do Django.
 - Template base reutilizável (`templates/base.html`) com barra lateral, barra superior (alertas abertos e menu do usuário) e menu ☰ no celular.
 
@@ -553,17 +558,28 @@ Isso é implementado no método `save()` do modelo `RegistroMonitoramento` (`app
 - Endpoint `POST /api/alertas/<id>/resolver/` para resolver alertas.
 - Throttling (limite de requisições) e CORS configurados.
 - JWT com tempo de expiração limitado (30 min de acesso, 7 dias de refresh); refresh tokens antigos são invalidados após a rotação (`token_blacklist`).
-- Permissões por perfil (`apps/monitoramento/permissions.py`):
+- Permissões por perfil: na API (`apps/monitoramento/permissions.py`, classe `LeituraPublicaEscritaSomenteAdmin`) e nas páginas (`apps/core/views.py`, decorador `admin_required`). Esconder o botão não basta: a API recusa com **403** quem não é administrador.
 
-| Ação | Visitante | Usuário (cidadão) | Administrador (`is_staff`) |
-|------|-----------|-------------------|----------------------------|
-| Ver mapa, áreas, alertas e registros (API) | ✅ | ✅ | ✅ |
-| Acessar Dashboard, Alertas e Monitoramento | ❌ (vai para o login) | ✅ | ✅ |
-| Cadastrar área / registrar medição | ❌ | ✅ | ✅ |
-| Alterar ou apagar área / medição | ❌ | ❌ | ✅ |
-| Resolver alertas | ❌ | ❌ | ✅ |
+#### Permissões por perfil
 
-Para criar um administrador: `python manage.py createsuperuser`.
+| O quê | Visitante (sem login) | Usuário comum | Administrador (`is_staff`) |
+|-------|-----------------------|---------------|----------------------------|
+| Menu lateral | Mapa | Mapa, Dashboard, Alertas | Mapa, Dashboard, Cadastrar Área, Alertas, Monitoramento, Usuários |
+| Sino de alertas na barra superior | ❌ (não aparece) | ✅ | ✅ |
+| Mapa: áreas, situação atual, histórico e gráfico | ✅ | ✅ | ✅ |
+| Mapa: "Registrar medição", Editar e Apagar | ❌ | ❌ | ✅ |
+| Dashboard (consulta) | ❌ (vai para o login) | ✅ | ✅ |
+| Cadastrar área (botão, formulário e `/dashboard/?nova=1`) | ❌ (vai para o login) | ❌ (volta ao mapa com aviso) | ✅ |
+| Alertas (consulta) | ❌ (vai para o login) | ✅ | ✅ |
+| Resolver alerta | ❌ | ❌ | ✅ |
+| Página de Monitoramento (`/monitoramento/`) | ❌ (vai para o login) | ❌ (volta ao mapa com aviso) | ✅ |
+| API: ler áreas, medições e alertas | ✅ | ✅ | ✅ |
+| API: criar, alterar ou apagar área / medição | ❌ (401/403) | ❌ (403) | ✅ |
+| API: alterar ou resolver alerta | ❌ (401/403) | ❌ (403) | ✅ |
+
+O aviso para o usuário comum é "Esta função é exclusiva da administração.". Assim ninguém de fora cria áreas falsas nem medições falsas (que gerariam alertas críticos e e-mails para a Defesa Civil).
+
+Para criar um administrador: `python manage.py createsuperuser`. Para o usuário comum de demonstração: `python manage.py criar_usuario_demo`.
 
 ### Mapa
 - Leaflet 1.9.4 servido localmente (`static/leaflet/`), sem depender de CDN.

@@ -4,14 +4,14 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.filters import SearchFilter, OrderingFilter
 from .models import AreaRisco, RegistroMonitoramento, Alerta
-from .permissions import CidadaoCadastraAdminGerencia, SomenteAdminAltera
+from .permissions import LeituraPublicaEscritaSomenteAdmin
 from .serializers import AreaRiscoSerializer, RegistroMonitoramentoSerializer, AlertaSerializer
 
 
 class AreaRiscoViewSet(viewsets.ModelViewSet):
     queryset = AreaRisco.objects.all()
     serializer_class = AreaRiscoSerializer
-    permission_classes = [CidadaoCadastraAdminGerencia]
+    permission_classes = [LeituraPublicaEscritaSomenteAdmin]
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ['nome', 'bairro', 'cidade', 'descricao', 'nivel_risco']
     ordering_fields = ['nome', 'bairro', 'cidade', 'nivel_risco', 'data_criacao']
@@ -66,7 +66,7 @@ class AreaRiscoViewSet(viewsets.ModelViewSet):
 class RegistroMonitoramentoViewSet(viewsets.ModelViewSet):
     queryset = RegistroMonitoramento.objects.select_related('area').all()
     serializer_class = RegistroMonitoramentoSerializer
-    permission_classes = [CidadaoCadastraAdminGerencia]
+    permission_classes = [LeituraPublicaEscritaSomenteAdmin]
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ['area__nome', 'area__bairro', 'status']
     ordering_fields = ['nivel_agua', 'data_hora', 'status']
@@ -84,7 +84,7 @@ class RegistroMonitoramentoViewSet(viewsets.ModelViewSet):
 class AlertaViewSet(viewsets.ModelViewSet):
     queryset = Alerta.objects.select_related('area').all()
     serializer_class = AlertaSerializer
-    permission_classes = [SomenteAdminAltera]
+    permission_classes = [LeituraPublicaEscritaSomenteAdmin]
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ['area__nome', 'mensagem', 'nivel']
     ordering_fields = ['nivel', 'data_hora', 'resolvido']

@@ -453,13 +453,14 @@
                 <img id="infoFoto" src="" alt="Foto da área" style="max-width:100%; height:auto; border-radius:8px; margin-top:8px;">
             </div>
 
+            {% if user.is_staff %}
+            {# Ações exclusivas do administrador: registrar medição, editar e apagar #}
             <div class="info-actions">
                 <a class="btn-detail" id="infoMedirLink" href="/monitoramento/"><i class="fa-solid fa-ruler-vertical"></i> Registrar medição</a>
-                {% if user.is_staff %}
                 <button class="btn-edit" id="editArea" type="button"><i class="fa-solid fa-pen"></i> Editar</button>
                 <button class="btn-delete" id="deleteArea" type="button"><i class="fa-solid fa-trash"></i> Apagar</button>
-                {% endif %}
             </div>
+            {% endif %}
         </article>
     </div>
 </section>
@@ -636,7 +637,8 @@
             infoNivel.textContent = NIVEL_RISCO_LABEL[risk] || '---';
             infoSituacao.textContent = textoSituacaoAtual(area);
             infoSituacaoIcone.className = `fa-solid fa-droplet ${config.badge.replace('badge-', '')}`;
-            document.getElementById('infoMedirLink').href = `/monitoramento/?area=${encodeURIComponent(area.id)}`;
+            const medirLink = document.getElementById('infoMedirLink');
+            if (medirLink) medirLink.href = `/monitoramento/?area=${encodeURIComponent(area.id)}`;
 
             infoBadge.className = `info-badge ${config.badge}`;
             infoBadge.innerHTML = `<i class="fa-solid fa-location-dot"></i> ${config.label}`;

@@ -21,12 +21,12 @@ class AuthViewsTests(TestCase):
     def test_internal_pages_return_200_when_logged_in(self):
         User.objects.create_user(username='teste@exemplo.com', password='senha123')
         self.client.login(username='teste@exemplo.com', password='senha123')
-        for name in ('dashboard', 'alertas', 'monitoramento'):
+        for name in ('dashboard', 'alertas'):
             self.assertEqual(self.client.get(reverse(name)).status_code, 200)
 
     def test_pages_use_local_libraries_without_cdn(self):
         """Chart.js, Bootstrap e Font Awesome vêm do próprio servidor: a tela funciona sem internet."""
-        User.objects.create_user(username='teste@exemplo.com', password='senha123')
+        User.objects.create_user(username='teste@exemplo.com', password='senha123', is_staff=True)
         self.client.login(username='teste@exemplo.com', password='senha123')
         for name in ('index', 'dashboard', 'alertas', 'monitoramento'):
             html = self.client.get(reverse(name)).content.decode()
@@ -85,7 +85,9 @@ class AuthViewsTests(TestCase):
         self.assertIn('Olá, Fulano.silva', html)
         self.assertNotIn('Gmail.Com', html)
 
-    def test_menu_has_cadastrar_area_link(self):
+    def test_menu_has_cadastrar_area_link_for_admin(self):
+        User.objects.create_user(username='admin@exemplo.com', password='senha123', is_staff=True)
+        self.client.login(username='admin@exemplo.com', password='senha123')
         response = self.client.get(reverse('index'))
         self.assertContains(response, 'href="/dashboard/?nova=1"')
 
@@ -168,3 +170,124 @@ class AuthViewsTests(TestCase):
         self.client.login(username='teste@exemplo.com', password='senha123')
         response = self.client.get(reverse('logout'))
         self.assertRedirects(response, reverse('index'))
+
+# Botão "Registrar medição" do cartão da área no mapa (o texto também aparece num comentário do CSS)
+BOTAO_REGISTRAR_MEDICAO = 'id="infoMedirLink"'
+
+
+class PerfisTests(TestCase):
+    """O que cada perfil vê: visitante, usuário comum e administrador (is_staff)."""
+
+    MENU = {
+        'Dashboard': 'href="/dashboard/"',
+        'Cadastrar Área': 'href="/dashboard/?nova=1"',
+        'Alertas': 'href="/alertas/"',
+        'Monitoramento': 'href="/monitoramento/"',
+        'Usuários': 'href="/admin/"',
+    }
+
+    def setUp(self):
+        User.objects.create_user(username='comum@exemplo.com', password='senha123')
+        User.objects.create_user(username='admin@exemplo.com', password='senha123', is_staff=True)
+
+    def entrar(self, perfil):
+        self.client.login(username=f'{perfil}@exemplo.com', password='senha123')
+
+    def menu(self, html):
+        """Itens do menu lateral presentes na página."""
+        inicio = html.index('<nav class="menu">')
+        nav = html[inicio:html.index('</nav>', inicio)]
+        itens = ['Mapa'] if 'href="/"' in nav else []
+        return itens + [nome for nome, href in self.MENU.items() if href in nav]
+
+    # Menu lateral
+    def test_menu_do_visitante_so_tem_mapa(self):
+        html = self.client.get(reverse('index')).content.decode()
+        self.assertEqual(self.menu(html), ['Mapa'])
+        self.assertIn('Entrar', html)
+        self.assertIn('Criar conta', html)
+
+    def test_menu_do_usuario_comum(self):
+        self.entrar('comum')
+        html = self.client.get(reverse('index')).content.decode()
+        self.assertEqual(self.menu(html), ['Mapa', 'Dashboard', 'Alertas'])
+
+    def test_menu_do_admin_tem_tudo(self):
+        self.entrar('admin')
+        html = self.client.get(reverse('index')).content.decode()
+        self.assertEqual(self.menu(html), ['Mapa', 'Dashboard', 'Cadastrar Área', 'Alertas', 'Monitoramento', 'Usuários'])
+
+    # Sino de alertas
+    def test_visitante_nao_ve_sino_de_alertas(self):
+        from apps.monitoramento.models import AreaRisco, Alerta
+        area = AreaRisco.objects.create(nome='Área', bairro='Centro')
+        Alerta.objects.create(area=area, mensagem='Aberto', nivel='critico')
+        html = self.client.get(reverse('index')).content.decode()
+        self.assertNotIn('class="notify"', html)
+        self.assertNotIn('<span class="notify-badge">', html)
+
+    # Mapa: botão "Registrar medição"
+    def test_visitante_nao_ve_registrar_medicao_no_mapa(self):
+        self.assertNotContains(self.client.get(reverse('index')), BOTAO_REGISTRAR_MEDICAO)
+
+    def test_usuario_comum_nao_ve_registrar_medicao_nem_editar_no_mapa(self):
+        self.entrar('comum')
+        response = self.client.get(reverse('index'))
+        self.assertNotContains(response, BOTAO_REGISTRAR_MEDICAO)
+        self.assertNotContains(response, 'id="editArea"')
+        self.assertNotContains(response, 'id="deleteArea"')
+
+    def test_admin_ve_registrar_medicao_editar_e_apagar_no_mapa(self):
+        self.entrar('admin')
+        response = self.client.get(reverse('index'))
+        self.assertContains(response, BOTAO_REGISTRAR_MEDICAO)
+        self.assertContains(response, 'id="editArea"')
+        self.assertContains(response, 'id="deleteArea"')
+
+    # Monitoramento (página só do administrador)
+    def test_usuario_comum_e_barrado_no_monitoramento(self):
+        self.entrar('comum')
+        response = self.client.get(reverse('monitoramento'), follow=True)
+        self.assertRedirects(response, reverse('index'))
+        self.assertContains(response, 'Esta função é exclusiva da administração.')
+
+    def test_admin_acessa_monitoramento(self):
+        self.entrar('admin')
+        response = self.client.get(reverse('monitoramento'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="saveMedicaoBtn"')
+
+    # Dashboard
+    def test_dashboard_do_usuario_comum_e_so_consulta(self):
+        self.entrar('comum')
+        response = self.client.get(reverse('dashboard'))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'id="openCreateArea"')
+        self.assertNotContains(response, 'Cadastrar Área de Risco')
+        self.assertNotContains(response, 'id="areaForm"')
+        self.assertNotContains(response, 'href="/monitoramento/"')
+        self.assertContains(response, 'id="total-areas"')
+
+    def test_dashboard_do_admin_tem_cadastro_de_area(self):
+        self.entrar('admin')
+        response = self.client.get(reverse('dashboard'))
+        self.assertContains(response, 'id="openCreateArea"')
+        self.assertContains(response, 'Cadastrar Área de Risco')
+        self.assertContains(response, 'id="areaForm"')
+
+    def test_usuario_comum_e_barrado_no_cadastro_pela_url(self):
+        self.entrar('comum')
+        response = self.client.get(reverse('dashboard') + '?nova=1', follow=True)
+        self.assertRedirects(response, reverse('index'))
+        self.assertContains(response, 'Esta função é exclusiva da administração.')
+
+    def test_admin_abre_cadastro_pela_url(self):
+        self.entrar('admin')
+        self.assertEqual(self.client.get(reverse('dashboard') + '?nova=1').status_code, 200)
+
+    # Alertas
+    def test_alertas_so_admin_pode_resolver(self):
+        self.entrar('comum')
+        self.assertContains(self.client.get(reverse('alertas')), 'const PODE_RESOLVER = false;')
+        self.entrar('admin')
+        self.assertContains(self.client.get(reverse('alertas')), 'const PODE_RESOLVER = true;')

@@ -397,6 +397,7 @@
 
         .aviso-erro { background: #dc2626; }
         .aviso-sucesso { background: #2f7f24; }
+        .aviso-info { background: var(--navy-2); }
         .aviso.saindo { opacity: 0; transform: translateY(8px); }
 
         @keyframes aviso-entra {
@@ -528,22 +529,27 @@
                 <a class="menu-link{% if request.resolver_match.url_name == 'index' %} active{% endif %}" href="/">
                     <i class="fa-solid fa-location-dot"></i>Mapa
                 </a>
+                {# Visitante: só o Mapa. Usuário comum: + Dashboard e Alertas. Administrador: tudo. #}
+                {% if user.is_authenticated %}
                 <a class="menu-link{% if request.resolver_match.url_name == 'dashboard' and not request.GET.nova %} active{% endif %}" href="/dashboard/">
                     <i class="fa-solid fa-chart-column"></i>Dashboard
                 </a>
+                {% if user.is_staff %}
                 <a class="menu-link{% if request.resolver_match.url_name == 'dashboard' and request.GET.nova %} active{% endif %}" href="/dashboard/?nova=1">
                     <i class="fa-solid fa-circle-plus"></i>Cadastrar Área
                 </a>
+                {% endif %}
                 <a class="menu-link{% if request.resolver_match.url_name == 'alertas' %} active{% endif %}" href="/alertas/">
                     <i class="fa-solid fa-bell"></i>Alertas
                 </a>
+                {% if user.is_staff %}
                 <a class="menu-link{% if request.resolver_match.url_name == 'monitoramento' %} active{% endif %}" href="/monitoramento/">
                     <i class="fa-solid fa-seedling"></i>Monitoramento
                 </a>
-                {% if user.is_staff %}
                 <a class="menu-link" href="/admin/">
                     <i class="fa-solid fa-gear"></i>Usuários
                 </a>
+                {% endif %}
                 {% endif %}
             </nav>
 
@@ -555,6 +561,7 @@
                     <a class="user-action" href="{% url 'logout' %}"><i class="fa-solid fa-right-from-bracket"></i> Sair</a>
                     {% else %}
                     <a class="user-action" href="{% url 'login' %}"><i class="fa-solid fa-right-to-bracket"></i> Entrar</a>
+                    <a class="user-action ms-2" href="{% url 'register' %}"><i class="fa-solid fa-user-plus"></i> Criar conta</a>
                     {% endif %}
                 </div>
             </div>
@@ -576,10 +583,12 @@
                     {% else %}
                     <span>Olá, visitante</span>
                     {% endif %}
+                    {% if user.is_authenticated %}
                     <a href="/alertas/" class="notify" aria-label="Alertas abertos: {{ open_alerts_count }}" title="{{ open_alerts_count }} alerta(s) aberto(s)">
                         <i class="fa-solid fa-bell"></i>
                         {% if open_alerts_count %}<span class="notify-badge">{% if open_alerts_count > 99 %}99+{% else %}{{ open_alerts_count }}{% endif %}</span>{% endif %}
                     </a>
+                    {% endif %}
                     <div class="dropdown">
                         <button class="avatar small" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Menu do usuário">
                             <i class="fa-solid fa-user"></i>
@@ -617,6 +626,11 @@
             fundo.addEventListener('click', () => setMenu(false));
             document.addEventListener('keydown', (event) => { if (event.key === 'Escape') setMenu(false); });
         })();
+        {% if messages %}
+        // Mensagens do servidor (ex.: "Esta função é exclusiva da administração.")
+        {% for message in messages %}avisar('{{ message|escapejs }}', '{% if message.level_tag == "success" %}sucesso{% elif message.level_tag == "info" %}info{% else %}erro{% endif %}');
+        {% endfor %}
+        {% endif %}
     </script>
     {% block scripts %}{% endblock %}
 </body>

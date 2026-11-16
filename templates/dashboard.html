@@ -298,7 +298,9 @@
             <h1>Dashboard</h1>
             <p>Visão geral dos dados de monitoramento</p>
         </div>
+        {% if user.is_staff %}
         <button id="openCreateArea" class="btn-main" type="button"><i class="fa-solid fa-circle-plus"></i> Cadastrar Área de Risco</button>
+        {% endif %}
     </div>
 
     <div class="stats">
@@ -356,7 +358,7 @@
 
         <div class="right-stack">
             <article class="card">
-                <div class="card-title">Últimos Registros <a href="/monitoramento/">Ver Todos</a></div>
+                <div class="card-title">Últimos Registros {% if user.is_staff %}<a href="/monitoramento/">Ver Todos</a>{% endif %}</div>
                 <div class="table-box">
                     <table>
                         <thead>
@@ -377,6 +379,8 @@
     </div>
 </section>
 
+{% if user.is_staff %}
+{# Cadastro de área: só o administrador recebe o formulário no HTML #}
 <div class="modal-wrap" id="areaModal" aria-hidden="true">
     <div class="modal-card">
         <div class="modal-head">
@@ -434,16 +438,13 @@
         </form>
     </div>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
-    <script src="{% static 'leaflet/leaflet.js' %}"></script>
+    {% if user.is_staff %}<script src="{% static 'leaflet/leaflet.js' %}"></script>{% endif %}
     <script>
         let riskChart;
-        const areaModal = document.getElementById('areaModal');
-        const areaForm = document.getElementById('areaForm');
-        const areaFormMessage = document.getElementById('areaFormMessage');
-        const saveAreaBtn = document.getElementById('saveAreaBtn');
 
         // Cor do indicador: vermelho (crítico/alto), amarelo (médio/alerta) ou verde
         function corClass(value) {
@@ -545,6 +546,16 @@
                 document.getElementById('left-alertas-body').innerHTML = '<tr><td colspan="4" class="loading">Erro ao carregar.</td></tr>';
             }
         }
+
+        document.addEventListener('DOMContentLoaded', loadDashboard);
+    </script>
+    {% if user.is_staff %}
+    <script>
+        // Cadastro de área (somente administradores)
+        const areaModal = document.getElementById('areaModal');
+        const areaForm = document.getElementById('areaForm');
+        const areaFormMessage = document.getElementById('areaFormMessage');
+        const saveAreaBtn = document.getElementById('saveAreaBtn');
 
         // Mini mapa do cadastro: o clique define latitude/longitude manualmente.
         // Os campos ficam desabilitados (não são enviados) até o usuário marcar um ponto,
@@ -671,9 +682,9 @@
         areaModal.addEventListener('click', (event) => { if (event.target === areaModal) closeAreaModal(); });
         areaForm.addEventListener('submit', submitAreaForm);
         document.addEventListener('DOMContentLoaded', () => {
-            loadDashboard();
             // Atalho do menu "Cadastrar Área" (/dashboard/?nova=1) abre o formulário direto
             if (new URLSearchParams(window.location.search).has('nova')) openAreaModal();
         });
     </script>
+    {% endif %}
 {% endblock %}
