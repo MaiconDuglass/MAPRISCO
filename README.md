@@ -155,6 +155,9 @@ python manage.py cadastrar_areas_reais
 # Gera medições e alertas dos últimos 7 dias, para o dashboard e os gráficos não ficarem vazios
 python manage.py dados_demo
 
+# Se as áreas reais foram alteradas pela tela, restaura o estado da demonstração
+python manage.py dados_demo --recriar
+
 # Cria o usuário comum de demonstração (a senha é digitada no terminal)
 python manage.py criar_usuario_demo
 
@@ -201,6 +204,7 @@ aproximado de cada bairro no OpenStreetMap (Nominatim).
 | `python manage.py cadastrar_areas_reais` | Cadastra (ou atualiza) as 4 áreas reais. Pode ser rodado várias vezes sem duplicar. |
 | `python manage.py cadastrar_areas_reais --limpar-exemplos` | Além disso, apaga as 6 áreas fictícias antigas (Bacia do Rio Itacaiúnas, Área Urbana Centro, Vale do Rio Parauapebas, Região de Marabá, Reserva Ambiental Sul e Setor Industrial), **com suas medições e alertas**. |
 | `python manage.py dados_demo` | Gera medições simuladas dos últimos 7 dias para as áreas reais, com níveis normal (< 50 cm), alerta (50 a 79 cm) e crítico (≥ 80 cm), e os alertas correspondentes (o mais recente fica em aberto). Áreas que já têm medições são ignoradas, então não duplica dados. Não envia e-mails. |
+| `python manage.py dados_demo --recriar` | **Restaura as 4 áreas reais** ao estado da demonstração: devolve nome, bairro, cidade, coordenadas, risco e descrição originais (recria a área se foi apagada; se foi renomeada, reconhece pelas coordenadas e corrige, sem duplicar), apaga as medições e os alertas **só dessas 4 áreas** e gera a série de novo. Resultado: Liberdade crítico (86,30 cm, com um alerta crítico em aberto), Primavera em alerta (61,20 cm), União e Novo Brasil normais (35,00 e 27,50 cm). Outras áreas e os relatos não são alterados; não envia e-mails. Pede confirmação no terminal; `--sim` pula a pergunta. |
 | `python manage.py criar_usuario_demo` | Cria (ou atualiza) o **usuário comum** de demonstração: e-mail `usuario.demo@maprisco.local`, nome "Usuário Demo". A senha é pedida no terminal (duas vezes) e passa pelas regras de senha do Django; ela não fica no código. O usuário nunca é administrador: se já existir, a senha e o nome são atualizados e ele volta a ser usuário comum. |
 | `python manage.py relatos_demo` | Cria 3 relatos de alagamento **simulados** (a descrição começa com "Relato simulado para demonstração"): um pendente, um aprovado vinculado à área real do bairro Liberdade e um rejeitado com motivo. Rodar de novo não duplica; o aprovado ganha a data de agora, para voltar a aparecer na camada de 7 dias do mapa. Se o usuário demo existir, ele é o autor. Não cria medição, alerta nem e-mail. Rode depois de `cadastrar_areas_reais` (e de `criar_usuario_demo`, se quiser o usuário demo como autor). |
 | `python manage.py populate_parauapebas` | Atalho mantido por compatibilidade: chama `cadastrar_areas_reais`. |

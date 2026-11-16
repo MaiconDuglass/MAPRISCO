@@ -1096,3 +1096,111 @@ class ApagarRelatoTests(TestCase):
                       'Para removê-los, use a página Relatos.', html)
         trecho = html[html.index("avisar('Área apagada.'") - 200:html.index("avisar('Área apagada.'")]
         self.assertIn('loadRelatos();', trecho)
+
+
+@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+class DadosDemoRecriarTests(TestCase):
+    """dados_demo --recriar: restaura só as 4 áreas reais ao estado da demonstração."""
+
+    ESPERADO = {
+        'Liberdade': ('86.30', 'critico'),
+        'Primavera': ('61.20', 'alerta'),
+        'União': ('35.00', 'normal'),
+        'Novo Brasil': ('27.50', 'normal'),
+    }
+
+    def setUp(self):
+        call_command('cadastrar_areas_reais', stdout=StringIO())
+        call_command('dados_demo', stdout=StringIO())
+
+    def recriar(self, *extra, resposta=None):
+        out = StringIO()
+        if resposta is None:
+            call_command('dados_demo', '--recriar', '--sim', *extra, stdout=out)
+        else:
+            with patch('builtins.input', return_value=resposta):
+                call_command('dados_demo', '--recriar', *extra, stdout=out)
+        return out.getvalue()
+
+    def situacao(self):
+        resultado = {}
+        for area in AreaRisco.objects.filter(nome__in=[a['nome'] for a in AREAS_REAIS]):
+            ultima = area.registros.order_by('-data_hora', '-pk').first()
+            resultado[area.bairro] = (str(ultima.nivel_agua), ultima.status)
+        return resultado
+
+    def bagunca(self):
+        """Simula o que foi feito pela tela: medições extras, área apagada, risco e local alterados."""
+        novo_brasil = AreaRisco.objects.get(bairro='Novo Brasil')
+        with self.captureOnCommitCallbacks(execute=True):
+            RegistroMonitoramento.objects.create(area=novo_brasil, nivel_agua=90)
+            RegistroMonitoramento.objects.create(area=novo_brasil, nivel_agua=50)
+        AreaRisco.objects.get(bairro='União').delete()
+        AreaRisco.objects.filter(bairro='Primavera').update(
+            nivel_risco='baixo', latitude=Decimal('-6.000000'), descricao='mudei')
+
+    def test_restaura_estado_da_demonstracao(self):
+        self.bagunca()
+        mail.outbox.clear()
+        self.recriar()
+        self.assertEqual(self.situacao(), self.ESPERADO)
+        for dados in AREAS_REAIS:
+            area = AreaRisco.objects.get(nome=dados['nome'])
+            self.assertEqual(area.bairro, dados['bairro'])
+            self.assertEqual(area.cidade, 'Parauapebas')
+            self.assertEqual(area.latitude, dados['latitude'])
+            self.assertEqual(area.longitude, dados['longitude'])
+            self.assertEqual(area.nivel_risco, dados['nivel_risco'])
+            self.assertEqual(area.descricao, dados['descricao'])
+            self.assertEqual(area.registros.count(), len(SERIES_DEMO[dados['nome']]))
+        self.assertEqual(AreaRisco.objects.count(), 4)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_um_alerta_critico_aberto_so_no_liberdade(self):
+        self.bagunca()
+        self.recriar()
+        abertos = Alerta.objects.filter(resolvido=False)
+        self.assertEqual(abertos.count(), 1)
+        self.assertEqual(abertos.get().area.bairro, 'Liberdade')
+        self.assertEqual(abertos.get().nivel, 'critico')
+        self.assertIn('86,30 cm', abertos.get().mensagem)
+
+    def test_area_renomeada_e_corrigida_sem_duplicar(self):
+        area = AreaRisco.objects.get(bairro='Liberdade')
+        AreaRisco.objects.filter(pk=area.pk).update(nome='Nome trocado pela tela', bairro='Outro')
+        saida = self.recriar()
+        self.assertIn('Área renomeada corrigida', saida)
+        self.assertEqual(AreaRisco.objects.count(), 4)
+        area.refresh_from_db()
+        self.assertEqual(area.nome, AREAS_REAIS[0]['nome'])
+        self.assertEqual(area.bairro, 'Liberdade')
+
+    def test_nao_mexe_em_outras_areas_nem_em_relatos(self):
+        outra = AreaRisco.objects.create(nome='Área de outra pessoa', bairro='Centro')
+        RegistroMonitoramento.objects.create(area=outra, nivel_agua=10)
+        liberdade = AreaRisco.objects.get(bairro='Liberdade')
+        relato = RelatoAlagamento.objects.create(
+            nome='Rua X', bairro='Liberdade', nivel_estimado='joelho', status='aprovado', area=liberdade)
+        self.recriar()
+        self.assertEqual(outra.registros.count(), 1)
+        relato.refresh_from_db()
+        self.assertEqual(relato.area, liberdade)
+        self.assertEqual(relato.status, 'aprovado')
+
+    def test_pede_confirmacao_e_cancelar_nao_altera_nada(self):
+        self.bagunca()
+        antes = RegistroMonitoramento.objects.count()
+        saida = self.recriar(resposta='n')
+        self.assertIn('Cancelado', saida)
+        self.assertEqual(RegistroMonitoramento.objects.count(), antes)
+        self.assertFalse(AreaRisco.objects.filter(bairro='União').exists())
+
+    def test_confirmando_no_terminal_restaura(self):
+        self.bagunca()
+        self.recriar(resposta='s')
+        self.assertEqual(self.situacao(), self.ESPERADO)
+
+    def test_sem_recriar_continua_sem_duplicar(self):
+        antes = RegistroMonitoramento.objects.count()
+        call_command('dados_demo', stdout=StringIO())
+        self.assertEqual(RegistroMonitoramento.objects.count(), antes)

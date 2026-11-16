@@ -9,13 +9,23 @@ Assim o dashboard, os gráficos e a central de alertas não ficam vazios.
 Não duplica dados: áreas que já têm alguma medição são ignoradas.
 Não envia e-mails (as medições são gravadas direto, sem passar pelo save()).
 
+Com --recriar, restaura as 4 áreas reais ao estado da demonstração:
+- devolve nome, bairro, cidade, coordenadas, risco e descrição de AREAS_REAIS
+  (recria a área se foi apagada; se foi renomeada, acha pelas coordenadas e corrige);
+- apaga as medições e os alertas SÓ dessas 4 áreas e gera a série de novo.
+Outras áreas e os relatos de moradores não são alterados. Pede confirmação
+no terminal (use --sim para pular).
+
 Uso:
     python manage.py cadastrar_areas_reais   # antes, se as áreas ainda não existirem
     python manage.py dados_demo
+    python manage.py dados_demo --recriar    # restaura as 4 áreas reais
 """
 from datetime import timedelta
 from decimal import Decimal
+from io import StringIO
 
+from django.core.management import call_command
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
@@ -58,8 +68,55 @@ def classificar(nivel):
 class Command(BaseCommand):
     help = 'Gera medições e alertas de demonstração para as áreas reais (sem duplicar)'
 
-    @transaction.atomic
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--recriar', action='store_true',
+            help='Restaura as 4 áreas reais: cadastro original e série de medições/alertas refeita do zero.',
+        )
+        parser.add_argument('--sim', action='store_true', help='Não pede confirmação (use com --recriar).')
+
     def handle(self, *args, **options):
+        if options['recriar']:
+            if not options['sim']:
+                resposta = input(
+                    'Isto apaga as medições e os alertas das 4 áreas reais e gera a série de demonstração de novo. '
+                    'Outras áreas e os relatos não são alterados. Continuar? [s/N] '
+                )
+                if resposta.strip().lower() not in ('s', 'sim'):
+                    self.stdout.write('Cancelado. Nada foi alterado.')
+                    return
+            self.recriar()
+        else:
+            self.gerar()
+
+    @transaction.atomic
+    def recriar(self):
+        # Área real renomeada: reconhece pelas coordenadas originais e devolve o nome (não duplica)
+        for dados in AREAS_REAIS:
+            if AreaRisco.objects.filter(nome=dados['nome'], bairro=dados['bairro'], cidade='Parauapebas').exists():
+                continue
+            renomeada = AreaRisco.objects.filter(
+                latitude=dados['latitude'], longitude=dados['longitude'],
+            ).exclude(nome__in=[a['nome'] for a in AREAS_REAIS]).first()
+            if renomeada:
+                self.stdout.write(f'Área renomeada corrigida: "{renomeada.nome}" -> "{dados["nome"]}"')
+                renomeada.nome, renomeada.bairro, renomeada.cidade = dados['nome'], dados['bairro'], 'Parauapebas'
+                renomeada.save(update_fields=['nome', 'bairro', 'cidade'])
+
+        # Cadastro original (recria as apagadas, corrige coordenadas, risco e descrição)
+        saida = StringIO()
+        call_command('cadastrar_areas_reais', stdout=saida)
+        self.stdout.write(saida.getvalue().strip())
+
+        nomes = [a['nome'] for a in AREAS_REAIS]
+        areas = AreaRisco.objects.filter(nome__in=nomes, cidade='Parauapebas')
+        registros, _ = RegistroMonitoramento.objects.filter(area__in=areas).delete()
+        alertas, _ = Alerta.objects.filter(area__in=areas).delete()
+        self.stdout.write(f'Apagados das áreas reais: {registros} medições e {alertas} alertas.')
+        self.gerar()
+
+    @transaction.atomic
+    def gerar(self):
         agora = timezone.now()
         nomes = [a['nome'] for a in AREAS_REAIS]
         areas = {a.nome: a for a in AreaRisco.objects.filter(nome__in=nomes, cidade='Parauapebas')}
