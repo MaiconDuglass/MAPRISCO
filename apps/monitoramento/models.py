@@ -205,3 +205,89 @@ def notificar_alerta_critico(alerta):
     except Exception:
         # Falha no e-mail nunca pode impedir o registro da medição
         logger.exception('Não foi possível enviar o e-mail do alerta %s', alerta.pk)
+
+
+class RelatoAlagamento(models.Model):
+    """
+    Relato de alagamento enviado por um morador (participação cidadã).
+
+    Fica pendente até um administrador (Defesa Civil) aprovar ou rejeitar.
+    Só relatos aprovados aparecem para o público, e sempre sem os dados do autor.
+    """
+
+    NIVEL_ESTIMADO_CHOICES = [
+        ('rua', 'Na calçada/rua (até 10 cm)'),
+        ('tornozelo', 'Até o tornozelo (10 a 30 cm)'),
+        ('joelho', 'Até o joelho (30 a 50 cm)'),
+        ('acima_joelho', 'Acima do joelho (mais de 50 cm)'),
+    ]
+
+    STATUS_CHOICES = [
+        ('pendente', 'Pendente'),
+        ('aprovado', 'Aprovado'),
+        ('rejeitado', 'Rejeitado'),
+    ]
+
+    autor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='relatos_alagamento', verbose_name='autor',
+        help_text='Morador que enviou o relato (visível só para administradores).'
+    )
+    nome = models.CharField('rua / endereço', max_length=100, help_text='Rua ou endereço onde alagou.')
+    bairro = models.CharField('bairro', max_length=100, help_text='Bairro onde alagou.')
+    cidade = models.CharField('cidade', max_length=100, default='Parauapebas')
+    latitude = models.DecimalField('latitude', max_digits=9, decimal_places=6, blank=True, null=True,
+                                   help_text='Definida pelo clique no mapa ou pela busca do endereço.')
+    longitude = models.DecimalField('longitude', max_digits=9, decimal_places=6, blank=True, null=True,
+                                    help_text='Definida pelo clique no mapa ou pela busca do endereço.')
+    nivel_estimado = models.CharField('nível estimado', max_length=15, choices=NIVEL_ESTIMADO_CHOICES,
+                                      help_text='Estimativa do morador (não é uma medição).')
+    descricao = models.TextField('descrição', blank=True)
+    foto = models.ImageField('foto', upload_to='relatos/', blank=True, null=True, help_text='Foto opcional (até 5 MB).')
+    status = models.CharField('status', max_length=10, choices=STATUS_CHOICES, default='pendente')
+    area = models.ForeignKey(
+        AreaRisco, on_delete=models.SET_NULL, null=True, blank=True, related_name='relatos',
+        verbose_name='área de risco', help_text='Área vinculada na aprovação.'
+    )
+    analisado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='relatos_analisados', verbose_name='analisado por'
+    )
+    analisado_em = models.DateTimeField('analisado em', null=True, blank=True)
+    motivo_rejeicao = models.TextField('motivo da rejeição', blank=True)
+    data_hora = models.DateTimeField('data e hora', auto_now_add=True)
+
+    def __str__(self):
+        return f'Relato {self.nome} - {self.bairro} ({self.get_status_display()})'
+
+    class Meta:
+        verbose_name = 'Relato de Alagamento'
+        verbose_name_plural = 'Relatos de Alagamento'
+        ordering = ['-data_hora']
+
+
+def notificar_novo_relato(relato):
+    """Avisa por e-mail os administradores com e-mail cadastrado que chegou um relato para analisar."""
+    destinatarios = list(
+        get_user_model().objects.filter(is_staff=True, is_active=True)
+        .exclude(email='').values_list('email', flat=True)
+    )
+    if not destinatarios:
+        return
+    try:
+        send_mail(
+            subject=f'[MAPRISCO] Novo relato de alagamento: {relato.nome} - {relato.bairro}',
+            message=(
+                'Um morador relatou um alagamento e o relato aguarda análise.\n\n'
+                f'Local: {relato.nome} - {relato.bairro} ({relato.cidade})\n'
+                f'Nível estimado: {relato.get_nivel_estimado_display()}\n'
+                f'{"Descrição: " + relato.descricao + chr(10) if relato.descricao else ""}\n'
+                'Acesse a página Relatos do MAPRISCO para aprovar ou rejeitar.'
+            ),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=destinatarios,
+            fail_silently=False,
+        )
+    except Exception:
+        # Falha no e-mail nunca pode impedir o envio do relato
+        logger.exception('Não foi possível enviar o e-mail do relato %s', relato.pk)

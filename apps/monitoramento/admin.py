@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import AreaRisco, RegistroMonitoramento, Alerta
+from .models import AreaRisco, RegistroMonitoramento, Alerta, RelatoAlagamento
 
 admin.site.site_header = 'MAPRISCO - Administração'
 admin.site.site_title = 'MAPRISCO'
@@ -42,3 +42,13 @@ class AlertaAdmin(admin.ModelAdmin):
     def marcar_resolvido(self, request, queryset):
         total = queryset.update(resolvido=True)
         self.message_user(request, f'{total} alerta(s) marcado(s) como resolvido(s).')
+
+
+@admin.register(RelatoAlagamento)
+class RelatoAlagamentoAdmin(admin.ModelAdmin):
+    list_display = ('nome', 'bairro', 'nivel_estimado', 'status', 'autor', 'area', 'data_hora')
+    list_filter = ('status', 'bairro', 'nivel_estimado')
+    search_fields = ('nome', 'bairro', 'descricao', 'autor__username', 'autor__first_name')
+    date_hierarchy = 'data_hora'
+    list_select_related = ('autor', 'area')
+    readonly_fields = ('data_hora', 'analisado_em')
