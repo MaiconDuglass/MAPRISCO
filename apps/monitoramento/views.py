@@ -113,7 +113,8 @@ class RelatoAlagamentoViewSet(viewsets.ModelViewSet):
     - visitante: só relatos aprovados;
     - usuário comum: aprovados + os seus próprios (qualquer status);
     - administrador: todos.
-    Filtros: ?status=pendente|aprovado|rejeitado, ?dias=7 (últimos N dias), ?meus=1.
+    Filtros: ?status=pendente|aprovado|rejeitado, ?dias=7 (últimos N dias), ?meus=1, ?area=<id>.
+    Apagar (DELETE): só administrador, em qualquer status.
     """
 
     serializer_class = RelatoAlagamentoSerializer
@@ -145,6 +146,10 @@ class RelatoAlagamentoViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(data_hora__gte=timezone.now() - timedelta(days=int(dias)))
         if params.get('meus') and user.is_authenticated:
             queryset = queryset.filter(autor=user)
+        # ?area=<id>: relatos vinculados a uma área (ex.: aviso ao apagar a área no mapa)
+        area = params.get('area')
+        if area and area.isdigit():
+            queryset = queryset.filter(area_id=int(area))
         return queryset
 
     def create(self, request, *args, **kwargs):

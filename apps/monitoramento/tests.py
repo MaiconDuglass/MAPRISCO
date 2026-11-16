@@ -1019,3 +1019,80 @@ class RelatosDemoCommandTests(TestCase):
         self.assertIn('cadastrar_areas_reais', saida)
         self.assertFalse(RelatoAlagamento.objects.filter(status='aprovado').exists())
         self.assertEqual(RelatoAlagamento.objects.count(), 2)
+
+
+class ApagarRelatoTests(TestCase):
+    """Apagar relato (página Relatos) e aviso ao apagar área com relatos no mapa."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.comum = User.objects.create_user(username='comum@exemplo.com', password='x')
+        cls.admin = User.objects.create_user(username='admin@exemplo.com', password='x', is_staff=True)
+        cls.area = AreaRisco.objects.create(nome='Rua do Rio', bairro='Liberdade', nivel_risco='alto',
+                                            latitude=Decimal('-6.08'), longitude=Decimal('-49.91'))
+
+    def setUp(self):
+        self.client = APIClient()
+
+    def criar(self, status='pendente', area=None, autor=None):
+        return RelatoAlagamento.objects.create(
+            nome='Rua X', bairro='União', latitude=Decimal('-6.07'), longitude=Decimal('-49.90'),
+            nivel_estimado='joelho', status=status, area=area, autor=autor)
+
+    def test_admin_apaga_relato_em_qualquer_status(self):
+        self.client.force_authenticate(self.admin)
+        for status in ('pendente', 'aprovado', 'rejeitado'):
+            relato = self.criar(status=status, area=self.area if status == 'aprovado' else None)
+            self.assertEqual(self.client.delete(f'/api/relatos/{relato.pk}/').status_code, 204, status)
+        self.assertFalse(RelatoAlagamento.objects.exists())
+
+    def test_apagar_relato_nao_apaga_a_area(self):
+        relato = self.criar(status='aprovado', area=self.area)
+        self.client.force_authenticate(self.admin)
+        self.client.delete(f'/api/relatos/{relato.pk}/')
+        self.assertTrue(AreaRisco.objects.filter(pk=self.area.pk).exists())
+
+    def test_usuario_comum_e_visitante_nao_apagam(self):
+        relato = self.criar(autor=self.comum)
+        self.assertIn(self.client.delete(f'/api/relatos/{relato.pk}/').status_code, (401, 403))
+        self.client.force_authenticate(self.comum)
+        self.assertEqual(self.client.delete(f'/api/relatos/{relato.pk}/').status_code, 403)
+        self.assertTrue(RelatoAlagamento.objects.filter(pk=relato.pk).exists())
+
+    def test_filtro_por_area_conta_relatos_do_mapa(self):
+        outra = AreaRisco.objects.create(nome='Outra', bairro='Centro')
+        self.criar(status='aprovado', area=self.area)
+        self.criar(status='aprovado', area=self.area)
+        self.criar(status='aprovado', area=outra)
+        self.criar(status='pendente', area=None)
+        antigo = self.criar(status='aprovado', area=self.area)
+        RelatoAlagamento.objects.filter(pk=antigo.pk).update(data_hora=timezone.now() - timedelta(days=8))
+        # Mesma consulta que o mapa faz antes de apagar a área (visitante também pode ler)
+        response = self.client.get('/api/relatos/', {'status': 'aprovado', 'dias': 7, 'area': self.area.pk})
+        self.assertEqual(response.data['count'], 2)
+
+    def test_apagar_area_mantem_relatos_aprovados_no_mapa(self):
+        """O aviso do mapa é verdadeiro: o relato continua aprovado (sem área) e segue na camada."""
+        relato = self.criar(status='aprovado', area=self.area)
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self.client.delete(f'/api/areas/{self.area.pk}/').status_code, 204)
+        relato.refresh_from_db()
+        self.assertIsNone(relato.area)
+        self.assertEqual(relato.status, 'aprovado')
+        ids = [r['id'] for r in self.client.get('/api/relatos/', {'status': 'aprovado', 'dias': 7}).data['results']]
+        self.assertIn(relato.pk, ids)
+
+    def test_pagina_relatos_tem_apagar_com_confirmacao(self):
+        self.client.force_login(self.admin)
+        html = self.client.get('/relatos/').content.decode()
+        self.assertIn('data-apagar=', html)
+        self.assertIn("titulo: 'Apagar relato?'", html)
+        self.assertIn("method: 'DELETE'", html)
+
+    def test_mapa_avisa_relatos_ao_apagar_area_e_recarrega_camada(self):
+        self.client.force_login(self.admin)
+        html = self.client.get('/').content.decode()
+        self.assertIn('relato(s) de morador no mapa. Eles continuarão aparecendo por até 7 dias. '
+                      'Para removê-los, use a página Relatos.', html)
+        trecho = html[html.index("avisar('Área apagada.'") - 200:html.index("avisar('Área apagada.'")]
+        self.assertIn('loadRelatos();', trecho)

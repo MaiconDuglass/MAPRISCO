@@ -78,6 +78,21 @@
             cursor: pointer;
         }
 
+        .btn-apagar {
+            border: none;
+            background: none;
+            color: #8a93a8;
+            border-radius: 8px;
+            min-height: 40px;
+            padding: 0 10px;
+            font-weight: 600;
+            font-size: 0.88rem;
+            cursor: pointer;
+            margin-left: auto;
+        }
+
+        .btn-apagar:hover { color: var(--danger); background: #fff5f5; }
+
         .btn-link-medicao {
             display: inline-flex;
             align-items: center;
@@ -251,13 +266,16 @@
             }
             let acoes = '';
             if (r.status === 'pendente') {
-                acoes = `<div class="relato-acoes">
+                acoes = `
                     <button type="button" class="btn-main" data-aprovar="${r.id}"><i class="fa-solid fa-check"></i> Aprovar</button>
-                    <button type="button" class="btn-rejeitar" data-rejeitar="${r.id}"><i class="fa-solid fa-xmark"></i> Rejeitar</button>
-                </div>`;
+                    <button type="button" class="btn-rejeitar" data-rejeitar="${r.id}"><i class="fa-solid fa-xmark"></i> Rejeitar</button>`;
             } else if (r.status === 'aprovado' && r.area) {
-                acoes = `<div class="relato-acoes"><a class="btn-link-medicao" href="/monitoramento/?area=${encodeURIComponent(r.area)}"><i class="fa-solid fa-ruler-vertical"></i> Registrar medição nesta área</a></div>`;
+                acoes = `<a class="btn-link-medicao" href="/monitoramento/?area=${encodeURIComponent(r.area)}"><i class="fa-solid fa-ruler-vertical"></i> Registrar medição nesta área</a>`;
             }
+            // Apagar: em qualquer status (ex.: relato falso, duplicado ou de teste)
+            acoes = `<div class="relato-acoes">${acoes}
+                <button type="button" class="btn-apagar" data-apagar="${r.id}"><i class="fa-solid fa-trash"></i> Apagar</button>
+            </div>`;
             return `
                 <article class="panel relato-card">
                     <div class="relato-midia">
@@ -425,14 +443,39 @@
             if (event.key === 'Escape') { aprovarModal.hidden = true; rejeitarModal.hidden = true; }
         });
 
+        // ---------- Apagar ----------
+        async function apagarRelato(relato) {
+            const noMapa = relato.status === 'aprovado' ? ' Ele deixa de aparecer no mapa.' : '';
+            const ok = await confirmar(
+                `O relato "${relato.nome} - ${relato.bairro}" será apagado.${noMapa} Esta ação não pode ser desfeita.`,
+                { titulo: 'Apagar relato?', botao: 'Apagar' }
+            );
+            if (!ok) return;
+            try {
+                const response = await fetch(`/api/relatos/${relato.id}/`, {
+                    method: 'DELETE',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                });
+                if (!response.ok) throw new Error('Falha ao apagar relato.');
+                if (relato.status === 'pendente') atualizarContadorMenu(-1);
+                avisar('Relato apagado.', 'sucesso');
+                carregarRelatos();
+            } catch (error) {
+                console.error(error);
+                avisar('Não foi possível apagar o relato.');
+            }
+        }
+
         lista.addEventListener('click', (event) => {
-            const aprovar = event.target.closest('[data-aprovar]');
-            const rejeitar = event.target.closest('[data-rejeitar]');
-            const id = Number((aprovar || rejeitar)?.dataset.aprovar || (aprovar || rejeitar)?.dataset.rejeitar);
+            const botao = event.target.closest('[data-aprovar], [data-rejeitar], [data-apagar]');
+            if (!botao) return;
+            const id = Number(botao.dataset.aprovar || botao.dataset.rejeitar || botao.dataset.apagar);
             const relato = relatos.find((r) => r.id === id);
             if (!relato) return;
-            if (aprovar) abrirAprovar(relato);
-            else abrirRejeitar(relato);
+            if (botao.dataset.aprovar) abrirAprovar(relato);
+            else if (botao.dataset.rejeitar) abrirRejeitar(relato);
+            else apagarRelato(relato);
         });
 
         filtroStatus.addEventListener('change', carregarRelatos);

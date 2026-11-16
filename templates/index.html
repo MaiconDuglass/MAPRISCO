@@ -1007,7 +1007,17 @@
         const deleteAreaBtn = document.getElementById('deleteArea');
         if (deleteAreaBtn) deleteAreaBtn.addEventListener('click', async () => {
             if (!currentArea || !currentArea.id) return;
-            const ok = await confirmar(`A área "${currentArea.nome}" e todas as suas medições e alertas serão apagados. Esta ação não pode ser desfeita.`, { titulo: 'Apagar área de risco?', botao: 'Apagar' });
+            // Relatos aprovados vinculados à área continuam no mapa depois de apagá-la: avisa o administrador
+            let avisoRelatos = '';
+            try {
+                const totalRelatos = await fetchCount(`/api/relatos/?status=aprovado&dias=7&area=${encodeURIComponent(currentArea.id)}`);
+                if (totalRelatos > 0) {
+                    avisoRelatos = ` Esta área tem ${totalRelatos} relato(s) de morador no mapa. Eles continuarão aparecendo por até 7 dias. Para removê-los, use a página Relatos.`;
+                }
+            } catch (error) {
+                console.error(error);
+            }
+            const ok = await confirmar(`A área "${currentArea.nome}" e todas as suas medições e alertas serão apagados. Esta ação não pode ser desfeita.${avisoRelatos}`, { titulo: 'Apagar área de risco?', botao: 'Apagar' });
             if (!ok) return;
             try {
                 const response = await fetch(`/api/areas/${currentArea.id}/`, {
@@ -1020,6 +1030,7 @@
                 allAreas = allAreas.filter((a) => a.id !== currentArea.id);
                 currentArea = null;
                 applyFilters();
+                loadRelatos();
                 avisar('Área apagada.', 'sucesso');
             } catch (error) {
                 console.error(error);
