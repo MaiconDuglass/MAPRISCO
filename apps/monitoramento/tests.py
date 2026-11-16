@@ -13,7 +13,7 @@ from django.utils import timezone
 
 from .management.commands.cadastrar_areas_reais import AREAS_EXEMPLO, AREAS_REAIS
 from .management.commands.dados_demo import SERIES_DEMO
-from .models import AreaRisco, RegistroMonitoramento, Alerta
+from .models import AreaRisco, RegistroMonitoramento, Alerta, RelatoAlagamento
 
 
 class AreaRiscoModelTests(TestCase):
@@ -613,3 +613,282 @@ class CriarUsuarioDemoCommandTests(TestCase):
         with self.assertRaises(CommandError):
             self.rodar('123')
         self.assertFalse(User.objects.filter(username='usuario.demo@maprisco.local').exists())
+
+
+# =============================================================================
+# Relatos de alagamento (participação cidadã)
+# =============================================================================
+
+def png_pequeno(nome='foto.png'):
+    """Imagem PNG válida de 1x1 pixel, para testar upload de foto."""
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    import base64
+    dados = base64.b64decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+    )
+    return SimpleUploadedFile(nome, dados, content_type='image/png')
+
+
+@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+class RelatoAlagamentoApiTests(TestCase):
+
+    URL = '/api/relatos/'
+
+    def setUp(self):
+        self.client = APIClient()
+        self.morador = User.objects.create_user(
+            username='morador@exemplo.com', password='x', email='morador@exemplo.com', first_name='Maria Moradora')
+        self.vizinho = User.objects.create_user(username='vizinho@exemplo.com', password='x', first_name='Vizinho')
+        self.admin = User.objects.create_user(
+            username='defesa@exemplo.com', password='x', email='defesa@exemplo.com', is_staff=True)
+        self.area = AreaRisco.objects.create(nome='Margem do Rio', bairro='Liberdade', nivel_risco='alto',
+                                             latitude=Decimal('-6.081236'), longitude=Decimal('-49.910355'))
+
+    def dados(self, **extra):
+        base = {
+            'nome': 'Rua das Palmeiras', 'bairro': 'Liberdade',
+            'latitude': '-6.080000', 'longitude': '-49.910000',
+            'nivel_estimado': 'tornozelo', 'descricao': 'Água cobrindo a calçada.',
+        }
+        base.update(extra)
+        return base
+
+    def criar(self, autor=None, status='pendente', **extra):
+        campos = {'nome': 'Rua X', 'bairro': 'União', 'latitude': Decimal('-6.07'),
+                  'longitude': Decimal('-49.90'), 'nivel_estimado': 'joelho', 'status': status}
+        campos.update(extra)
+        return RelatoAlagamento.objects.create(autor=autor, **campos)
+
+    # --- Envio ---
+    def test_visitante_nao_cria_relato(self):
+        response = self.client.post(self.URL, self.dados(), format='json')
+        self.assertIn(response.status_code, (401, 403))
+        self.assertFalse(RelatoAlagamento.objects.exists())
+
+    def test_usuario_comum_cria_relato_pendente(self):
+        self.client.force_authenticate(self.morador)
+        response = self.client.post(self.URL, self.dados(), format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        relato = RelatoAlagamento.objects.get()
+        self.assertEqual(relato.autor, self.morador)
+        self.assertEqual(relato.status, 'pendente')
+        self.assertEqual(relato.cidade, 'Parauapebas')
+
+    def test_autor_e_sempre_o_usuario_logado(self):
+        self.client.force_authenticate(self.morador)
+        response = self.client.post(self.URL, self.dados(autor=self.vizinho.pk, status='aprovado'), format='json')
+        self.assertEqual(response.status_code, 201)
+        relato = RelatoAlagamento.objects.get()
+        self.assertEqual(relato.autor, self.morador)
+        self.assertEqual(relato.status, 'pendente')
+
+    def test_relato_com_foto(self):
+        self.client.force_authenticate(self.morador)
+        response = self.client.post(self.URL, {**self.dados(), 'foto': png_pequeno()}, format='multipart')
+        self.assertEqual(response.status_code, 201, response.data)
+        relato = RelatoAlagamento.objects.get()
+        self.assertTrue(relato.foto.name.startswith('relatos/'))
+        relato.foto.delete(save=False)
+
+    def test_limite_de_5_relatos_em_24_horas(self):
+        self.client.force_authenticate(self.morador)
+        for i in range(5):
+            response = self.client.post(self.URL, self.dados(nome=f'Rua {i}'), format='json')
+            self.assertEqual(response.status_code, 201)
+        response = self.client.post(self.URL, self.dados(nome='Rua 6'), format='json')
+        self.assertEqual(response.status_code, 429)
+        self.assertIn('5 relatos nas últimas 24 horas', str(response.data))
+        self.assertEqual(RelatoAlagamento.objects.count(), 5)
+
+    def test_limite_considera_so_as_ultimas_24_horas(self):
+        for i in range(5):
+            relato = self.criar(autor=self.morador)
+            RelatoAlagamento.objects.filter(pk=relato.pk).update(data_hora=timezone.now() - timedelta(hours=25))
+        self.client.force_authenticate(self.morador)
+        self.assertEqual(self.client.post(self.URL, self.dados(), format='json').status_code, 201)
+
+    def test_coordenadas_fora_de_parauapebas_sao_recusadas(self):
+        self.client.force_authenticate(self.morador)
+        # Belém-PA
+        response = self.client.post(self.URL, self.dados(latitude='-1.455800', longitude='-48.490200'), format='json')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('fora da região de Parauapebas', str(response.data))
+        self.assertFalse(RelatoAlagamento.objects.exists())
+
+    @patch('apps.monitoramento.geocoding.geocodificar_endereco')
+    def test_sem_clique_no_mapa_usa_geocodificacao(self, mock_geocode):
+        mock_geocode.return_value = (Decimal('-6.070000'), Decimal('-49.900000'))
+        self.client.force_authenticate(self.morador)
+        dados = self.dados()
+        del dados['latitude'], dados['longitude']
+        response = self.client.post(self.URL, dados, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(RelatoAlagamento.objects.get().latitude, Decimal('-6.070000'))
+
+    @patch('apps.monitoramento.geocoding.geocodificar_endereco', return_value=None)
+    def test_endereco_nao_encontrado_pede_clique_no_mapa(self, mock_geocode):
+        self.client.force_authenticate(self.morador)
+        dados = self.dados()
+        del dados['latitude'], dados['longitude']
+        response = self.client.post(self.URL, dados, format='json')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Marque o local do alagamento no mapa', str(response.data))
+
+    def test_email_para_administradores_ao_criar_relato(self):
+        self.client.force_authenticate(self.morador)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(self.URL, self.dados(), format='json')
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ['defesa@exemplo.com'])
+        self.assertIn('Rua das Palmeiras', mail.outbox[0].subject)
+
+    def test_falha_no_email_nao_impede_o_relato(self):
+        self.client.force_authenticate(self.morador)
+        with patch('apps.monitoramento.models.send_mail', side_effect=Exception('SMTP fora do ar')):
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.post(self.URL, self.dados(), format='json')
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(RelatoAlagamento.objects.count(), 1)
+
+    # --- Leitura por perfil ---
+    def test_visitante_ve_so_aprovados_sem_dados_do_autor(self):
+        aprovado = self.criar(autor=self.morador, status='aprovado')
+        self.criar(autor=self.morador, status='pendente')
+        self.criar(autor=self.morador, status='rejeitado', motivo_rejeicao='Duplicado')
+        response = self.client.get(self.URL)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([r['id'] for r in response.data['results']], [aprovado.pk])
+        texto = str(response.data)
+        for proibido in ('autor', 'Maria Moradora', 'morador@exemplo.com', 'motivo_rejeicao'):
+            self.assertNotIn(proibido, texto)
+
+    def test_usuario_ve_aprovados_e_os_seus_pendentes(self):
+        aprovado_de_outro = self.criar(autor=self.vizinho, status='aprovado')
+        pendente_de_outro = self.criar(autor=self.vizinho, status='pendente')
+        meu_pendente = self.criar(autor=self.morador, status='pendente')
+        meu_rejeitado = self.criar(autor=self.morador, status='rejeitado', motivo_rejeicao='Fora da área')
+        self.client.force_authenticate(self.morador)
+        response = self.client.get(self.URL)
+        ids = {r['id'] for r in response.data['results']}
+        self.assertEqual(ids, {aprovado_de_outro.pk, meu_pendente.pk, meu_rejeitado.pk})
+        self.assertNotIn(pendente_de_outro.pk, ids)
+        por_id = {r['id']: r for r in response.data['results']}
+        self.assertEqual(por_id[meu_rejeitado.pk]['motivo_rejeicao'], 'Fora da área')
+        self.assertTrue(por_id[meu_pendente.pk]['eh_meu'])
+        self.assertNotIn('autor_nome', por_id[aprovado_de_outro.pk])
+        self.assertNotIn('Vizinho', str(response.data))
+
+    def test_meus_relatos(self):
+        self.criar(autor=self.vizinho, status='aprovado')
+        meu = self.criar(autor=self.morador, status='pendente')
+        self.client.force_authenticate(self.morador)
+        response = self.client.get(self.URL, {'meus': 1})
+        self.assertEqual([r['id'] for r in response.data['results']], [meu.pk])
+
+    def test_admin_ve_todos_com_autor(self):
+        for status in ('pendente', 'aprovado', 'rejeitado'):
+            self.criar(autor=self.morador, status=status)
+        self.client.force_authenticate(self.admin)
+        response = self.client.get(self.URL)
+        self.assertEqual(response.data['count'], 3)
+        self.assertEqual(response.data['results'][0]['autor_nome'], 'Maria Moradora')
+        self.assertEqual(response.data['results'][0]['autor_email'], 'morador@exemplo.com')
+        self.assertEqual(self.client.get(self.URL, {'status': 'pendente'}).data['count'], 1)
+
+    def test_filtro_dos_ultimos_7_dias(self):
+        recente = self.criar(status='aprovado')
+        antigo = self.criar(status='aprovado')
+        RelatoAlagamento.objects.filter(pk=antigo.pk).update(data_hora=timezone.now() - timedelta(days=8))
+        response = self.client.get(self.URL, {'status': 'aprovado', 'dias': 7})
+        self.assertEqual([r['id'] for r in response.data['results']], [recente.pk])
+
+    # --- Análise (aprovar / rejeitar) ---
+    def test_usuario_comum_nao_aprova_nem_rejeita(self):
+        relato = self.criar(autor=self.morador)
+        self.client.force_authenticate(self.morador)
+        self.assertEqual(self.client.post(f'{self.URL}{relato.pk}/aprovar/', {'area': self.area.pk}, format='json').status_code, 403)
+        self.assertEqual(self.client.post(f'{self.URL}{relato.pk}/rejeitar/', {'motivo': 'x'}, format='json').status_code, 403)
+        self.assertEqual(self.client.delete(f'{self.URL}{relato.pk}/').status_code, 403)
+        relato.refresh_from_db()
+        self.assertEqual(relato.status, 'pendente')
+
+    def test_aprovar_vinculando_area_existente(self):
+        relato = self.criar(autor=self.morador)
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(f'{self.URL}{relato.pk}/aprovar/', {'area': self.area.pk}, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        relato.refresh_from_db()
+        self.assertEqual(relato.status, 'aprovado')
+        self.assertEqual(relato.area, self.area)
+        self.assertEqual(relato.analisado_por, self.admin)
+        self.assertIsNotNone(relato.analisado_em)
+        self.assertEqual(response.data['area'], self.area.pk)
+
+    def test_aprovar_criando_area_nova(self):
+        relato = self.criar(autor=self.morador, nome='Rua Nova Esperança', bairro='Primavera', descricao='Alaga sempre.')
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(f'{self.URL}{relato.pk}/aprovar/', {'criar_area': True, 'nivel_risco': 'medio'}, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        area = AreaRisco.objects.get(nome='Rua Nova Esperança')
+        self.assertEqual(area.bairro, 'Primavera')
+        self.assertEqual(area.nivel_risco, 'medio')
+        self.assertEqual(area.latitude, relato.latitude)
+        self.assertEqual(area.longitude, relato.longitude)
+        data = timezone.localtime(relato.data_hora).strftime('%d/%m/%Y')
+        self.assertIn(f'Criada a partir de relato de morador em {data}', area.descricao)
+        relato.refresh_from_db()
+        self.assertEqual(relato.area, area)
+
+    def test_aprovar_criando_area_exige_nivel_de_risco(self):
+        relato = self.criar()
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(f'{self.URL}{relato.pk}/aprovar/', {'criar_area': True}, format='json')
+        self.assertEqual(response.status_code, 400)
+        relato.refresh_from_db()
+        self.assertEqual(relato.status, 'pendente')
+
+    def test_aprovar_exige_uma_das_opcoes(self):
+        relato = self.criar()
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self.client.post(f'{self.URL}{relato.pk}/aprovar/', {}, format='json').status_code, 400)
+        ambos = {'area': self.area.pk, 'criar_area': True, 'nivel_risco': 'alto'}
+        self.assertEqual(self.client.post(f'{self.URL}{relato.pk}/aprovar/', ambos, format='json').status_code, 400)
+        self.assertEqual(self.client.post(f'{self.URL}{relato.pk}/aprovar/', {'area': 99999}, format='json').status_code, 400)
+
+    def test_aprovar_nao_cria_medicao_nem_alerta(self):
+        relato = self.criar(nivel_estimado='acima_joelho')
+        self.client.force_authenticate(self.admin)
+        self.client.post(f'{self.URL}{relato.pk}/aprovar/', {'area': self.area.pk}, format='json')
+        self.client.post(f'{self.URL}{self.criar().pk}/aprovar/', {'criar_area': True, 'nivel_risco': 'alto'}, format='json')
+        self.assertFalse(RegistroMonitoramento.objects.exists())
+        self.assertFalse(Alerta.objects.exists())
+
+    def test_rejeitar_exige_motivo(self):
+        relato = self.criar(autor=self.morador)
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self.client.post(f'{self.URL}{relato.pk}/rejeitar/', {'motivo': '  '}, format='json').status_code, 400)
+        response = self.client.post(f'{self.URL}{relato.pk}/rejeitar/', {'motivo': 'Local fora de área de risco.'}, format='json')
+        self.assertEqual(response.status_code, 200)
+        relato.refresh_from_db()
+        self.assertEqual(relato.status, 'rejeitado')
+        self.assertEqual(relato.motivo_rejeicao, 'Local fora de área de risco.')
+        self.assertEqual(relato.analisado_por, self.admin)
+
+    def test_nao_aprova_nem_rejeita_relato_ja_analisado(self):
+        aprovado = self.criar(status='aprovado', area=self.area)
+        rejeitado = self.criar(status='rejeitado', motivo_rejeicao='x')
+        self.client.force_authenticate(self.admin)
+        for relato in (aprovado, rejeitado):
+            r1 = self.client.post(f'{self.URL}{relato.pk}/aprovar/', {'area': self.area.pk}, format='json')
+            r2 = self.client.post(f'{self.URL}{relato.pk}/rejeitar/', {'motivo': 'y'}, format='json')
+            self.assertEqual(r1.status_code, 400)
+            self.assertEqual(r2.status_code, 400)
+            self.assertIn('já foi analisado', str(r1.data))
+        rejeitado.refresh_from_db()
+        self.assertEqual(rejeitado.motivo_rejeicao, 'x')
+
+    def test_apagar_usuario_mantem_relato(self):
+        relato = self.criar(autor=self.morador, status='aprovado')
+        self.morador.delete()
+        relato.refresh_from_db()
+        self.assertIsNone(relato.autor)

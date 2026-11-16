@@ -22,3 +22,21 @@ class LeituraPublicaEscritaSomenteAdmin(BasePermission):
         if request.method in SAFE_METHODS:
             return True
         return eh_administrador(request.user)
+
+
+class RelatoPermissao(BasePermission):
+    """
+    Relatos de alagamento (participação cidadã):
+    - Ler: público (o que cada perfil enxerga é filtrado no ViewSet).
+    - Enviar relato (POST na lista): qualquer usuário logado.
+    - Aprovar, rejeitar, alterar ou apagar: somente administradores.
+    """
+
+    message = 'Esta função é exclusiva da administração.'
+
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS:
+            return True
+        if getattr(view, 'action', None) == 'create':
+            return bool(request.user and request.user.is_authenticated)
+        return eh_administrador(request.user)

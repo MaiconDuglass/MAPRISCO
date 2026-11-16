@@ -1,7 +1,7 @@
 import logging
 from rest_framework import serializers
 from rest_framework.validators import UniqueTogetherValidator
-from .models import AreaRisco, RegistroMonitoramento, Alerta
+from .models import AreaRisco, RegistroMonitoramento, Alerta, RelatoAlagamento
 
 MAX_FOTO_SIZE_MB = 5
 
@@ -169,3 +169,93 @@ class AlertaSerializer(serializers.ModelSerializer):
         model = Alerta
         fields = '__all__'
         read_only_fields = ['data_hora']
+
+class RelatoAlagamentoSerializer(serializers.ModelSerializer):
+    """
+    Relato de alagamento do morador.
+
+    LGPD: nome e e-mail do autor só vão na resposta para administradores.
+    O público recebe apenas o local, o nível estimado, a data e o status.
+    """
+
+    nivel_estimado_label = serializers.CharField(source='get_nivel_estimado_display', read_only=True)
+    status_label = serializers.CharField(source='get_status_display', read_only=True)
+    area_nome = serializers.CharField(source='area.nome', read_only=True, default=None)
+    eh_meu = serializers.SerializerMethodField()
+    autor_nome = serializers.SerializerMethodField()
+    autor_email = serializers.SerializerMethodField()
+    analisado_por_nome = serializers.SerializerMethodField()
+
+    CAMPOS_SO_ADMIN = ('autor_nome', 'autor_email', 'analisado_por_nome', 'analisado_em')
+
+    class Meta:
+        model = RelatoAlagamento
+        fields = [
+            'id', 'nome', 'bairro', 'cidade', 'latitude', 'longitude',
+            'nivel_estimado', 'nivel_estimado_label', 'descricao', 'foto',
+            'status', 'status_label', 'area', 'area_nome', 'motivo_rejeicao', 'data_hora',
+            'eh_meu', 'autor_nome', 'autor_email', 'analisado_por_nome', 'analisado_em',
+        ]
+        read_only_fields = ['status', 'area', 'motivo_rejeicao', 'data_hora', 'analisado_em']
+
+    def _usuario(self):
+        request = self.context.get('request')
+        return getattr(request, 'user', None)
+
+    def _eh_admin(self):
+        user = self._usuario()
+        return bool(user and user.is_authenticated and user.is_staff)
+
+    def get_eh_meu(self, obj):
+        user = self._usuario()
+        return bool(user and user.is_authenticated and obj.autor_id == user.pk)
+
+    def get_autor_nome(self, obj):
+        return (obj.autor.get_full_name() or obj.autor.first_name or obj.autor.username) if obj.autor else None
+
+    def get_autor_email(self, obj):
+        return (obj.autor.email or obj.autor.username) if obj.autor else None
+
+    def get_analisado_por_nome(self, obj):
+        u = obj.analisado_por
+        return (u.get_full_name() or u.first_name or u.username) if u else None
+
+    def to_representation(self, instance):
+        dados = super().to_representation(instance)
+        if not self._eh_admin():
+            for campo in self.CAMPOS_SO_ADMIN:
+                dados.pop(campo, None)
+            # Motivo da rejeição: só para o próprio autor
+            if not dados.get('eh_meu'):
+                dados.pop('motivo_rejeicao', None)
+        return dados
+
+    def validate_foto(self, value):
+        if value is not None and value.size > MAX_FOTO_SIZE_MB * 1024 * 1024:
+            raise serializers.ValidationError(f'A imagem deve ter no máximo {MAX_FOTO_SIZE_MB} MB.')
+        return value
+
+    def validate(self, attrs):
+        from .geocoding import dentro_de_parauapebas, geocodificar_endereco, GeocodingNetworkError
+
+        lat, lng = attrs.get('latitude'), attrs.get('longitude')
+        if (lat is None) != (lng is None):
+            raise serializers.ValidationError({'latitude': 'Informe latitude e longitude juntas (clique no mapa).'})
+
+        if lat is None:
+            # Sem clique no mapa: tenta achar o local pelo endereço (busca já limitada a Parauapebas)
+            cidade = attrs.get('cidade') or RelatoAlagamento._meta.get_field('cidade').default
+            try:
+                coords = geocodificar_endereco(attrs.get('nome', ''), attrs.get('bairro', ''), cidade)
+            except GeocodingNetworkError:
+                coords = None
+            if not coords:
+                raise serializers.ValidationError({
+                    'latitude': 'Não foi possível localizar este endereço. Marque o local do alagamento no mapa.'
+                })
+            attrs['latitude'], attrs['longitude'] = coords
+        elif not dentro_de_parauapebas(lat, lng):
+            raise serializers.ValidationError({
+                'latitude': 'O local marcado está fora da região de Parauapebas. Marque o ponto dentro do município.'
+            })
+        return attrs

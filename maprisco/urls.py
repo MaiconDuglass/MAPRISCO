@@ -19,13 +19,16 @@ from rest_framework_simplejwt.views import (
 )
 
 # Import ViewSets from project apps
-from apps.monitoramento.views import AreaRiscoViewSet, RegistroMonitoramentoViewSet, AlertaViewSet
+from apps.monitoramento.views import (
+    AreaRiscoViewSet, RegistroMonitoramentoViewSet, AlertaViewSet, RelatoAlagamentoViewSet,
+)
 
 # Create API router for REST endpoints
 router = DefaultRouter()
 router.register(r'areas', AreaRiscoViewSet)           # CRUD for risk areas
 router.register(r'monitoramento', RegistroMonitoramentoViewSet)  # CRUD for monitoring records
 router.register(r'alertas', AlertaViewSet)           # CRUD for alerts
+router.register(r'relatos', RelatoAlagamentoViewSet, basename='relato')  # Relatos de alagamento dos moradores
 
 # Main URL patterns for the project
 urlpatterns = [

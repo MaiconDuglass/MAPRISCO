@@ -34,14 +34,23 @@ def _get_user_agent() -> str:
     return getattr(settings, 'GEOCODER_USER_AGENT', DEFAULT_USER_AGENT)
 
 
-def _build_viewbox() -> str:
-    """Constrói viewbox string: min_lon,min_lat,max_lon,max_lat."""
+def limites_parauapebas() -> Tuple[float, float, float, float]:
+    """Região de Parauapebas usada na busca de endereço: (min_lat, max_lat, min_lng, max_lng)."""
     center_lat = getattr(settings, 'MAP_CENTER_LAT', -6.064)
     center_lng = getattr(settings, 'MAP_CENTER_LNG', -49.9011)
-    min_lat = center_lat - VIEWBOX_DELTA
-    max_lat = center_lat + VIEWBOX_DELTA
-    min_lng = center_lng - VIEWBOX_DELTA
-    max_lng = center_lng + VIEWBOX_DELTA
+    return (center_lat - VIEWBOX_DELTA, center_lat + VIEWBOX_DELTA,
+            center_lng - VIEWBOX_DELTA, center_lng + VIEWBOX_DELTA)
+
+
+def dentro_de_parauapebas(lat, lng) -> bool:
+    """True se o ponto está dentro da mesma região (viewbox) usada na geocodificação."""
+    min_lat, max_lat, min_lng, max_lng = limites_parauapebas()
+    return min_lat <= float(lat) <= max_lat and min_lng <= float(lng) <= max_lng
+
+
+def _build_viewbox() -> str:
+    """Constrói viewbox string: min_lon,min_lat,max_lon,max_lat."""
+    min_lat, max_lat, min_lng, max_lng = limites_parauapebas()
     return f'{min_lng},{min_lat},{max_lng},{max_lat}'
 
 
