@@ -634,15 +634,19 @@ class RelatoAlagamentoApiTests(TestCase):
 
     URL = '/api/relatos/'
 
+    @classmethod
+    def setUpTestData(cls):
+        # Criados uma vez para a classe toda (criar usuário com senha é lento por causa do hash)
+        cls.morador = User.objects.create_user(
+            username='morador@exemplo.com', password='x', email='morador@exemplo.com', first_name='Maria Moradora')
+        cls.vizinho = User.objects.create_user(username='vizinho@exemplo.com', password='x', first_name='Vizinho')
+        cls.admin = User.objects.create_user(
+            username='defesa@exemplo.com', password='x', email='defesa@exemplo.com', is_staff=True)
+        cls.area = AreaRisco.objects.create(nome='Margem do Rio', bairro='Liberdade', nivel_risco='alto',
+                                            latitude=Decimal('-6.081236'), longitude=Decimal('-49.910355'))
+
     def setUp(self):
         self.client = APIClient()
-        self.morador = User.objects.create_user(
-            username='morador@exemplo.com', password='x', email='morador@exemplo.com', first_name='Maria Moradora')
-        self.vizinho = User.objects.create_user(username='vizinho@exemplo.com', password='x', first_name='Vizinho')
-        self.admin = User.objects.create_user(
-            username='defesa@exemplo.com', password='x', email='defesa@exemplo.com', is_staff=True)
-        self.area = AreaRisco.objects.create(nome='Margem do Rio', bairro='Liberdade', nivel_risco='alto',
-                                             latitude=Decimal('-6.081236'), longitude=Decimal('-49.910355'))
 
     def dados(self, **extra):
         base = {
