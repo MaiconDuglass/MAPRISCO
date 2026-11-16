@@ -47,16 +47,19 @@ MAPRISCO/
 │       ├── pagination.py    # Paginação da API (?page_size=)
 │       ├── geocoding.py     # Busca de coordenadas pelo endereço (Nominatim)
 │       ├── admin.py         # Painel administrativo
-│       ├── management/      # Comandos (cadastrar_areas_reais, dados_demo, criar_usuario_demo, populate_parauapebas, geocodificar_areas)
+│       ├── management/      # Comandos (cadastrar_areas_reais, dados_demo, relatos_demo, criar_usuario_demo, populate_parauapebas, geocodificar_areas)
 │       └── migrations/      # Migrações do banco
 ├── static/                   # CSS, JS, Leaflet e logo
-│   └── js/comum.js          # Funções JavaScript compartilhadas pelas telas
+│   ├── js/comum.js          # Funções JavaScript compartilhadas pelas telas
+│   └── js/mini_mapa.js      # Mini mapas (marcar um ponto / mostrar um ponto)
 └── templates/                # Templates HTML
     ├── base.html            # Layout comum (barra lateral, barra superior)
     ├── index.html           # Mapa
     ├── dashboard.html       # Dashboard e cadastro de área
     ├── alertas.html         # Central de alertas
     ├── monitoramento.html   # Medições de nível de água
+    ├── relatar.html         # Relato de alagamento do morador + "Meus relatos"
+    ├── relatos.html         # Análise dos relatos (administrador)
     ├── login.html           # Login
     └── register.html        # Cadastro de usuário
 ```
@@ -154,6 +157,9 @@ python manage.py dados_demo
 
 # Cria o usuário comum de demonstração (a senha é digitada no terminal)
 python manage.py criar_usuario_demo
+
+# Cria 3 relatos de alagamento simulados (pendente, aprovado e rejeitado)
+python manage.py relatos_demo
 ```
 Detalhes na seção "Comandos de gerenciamento".
 
@@ -196,6 +202,7 @@ aproximado de cada bairro no OpenStreetMap (Nominatim).
 | `python manage.py cadastrar_areas_reais --limpar-exemplos` | Além disso, apaga as 6 áreas fictícias antigas (Bacia do Rio Itacaiúnas, Área Urbana Centro, Vale do Rio Parauapebas, Região de Marabá, Reserva Ambiental Sul e Setor Industrial), **com suas medições e alertas**. |
 | `python manage.py dados_demo` | Gera medições simuladas dos últimos 7 dias para as áreas reais, com níveis normal (< 50 cm), alerta (50 a 79 cm) e crítico (≥ 80 cm), e os alertas correspondentes (o mais recente fica em aberto). Áreas que já têm medições são ignoradas, então não duplica dados. Não envia e-mails. |
 | `python manage.py criar_usuario_demo` | Cria (ou atualiza) o **usuário comum** de demonstração: e-mail `usuario.demo@maprisco.local`, nome "Usuário Demo". A senha é pedida no terminal (duas vezes) e passa pelas regras de senha do Django; ela não fica no código. O usuário nunca é administrador: se já existir, a senha e o nome são atualizados e ele volta a ser usuário comum. |
+| `python manage.py relatos_demo` | Cria 3 relatos de alagamento **simulados** (a descrição começa com "Relato simulado para demonstração"): um pendente, um aprovado vinculado à área real do bairro Liberdade e um rejeitado com motivo. Rodar de novo não duplica; o aprovado ganha a data de agora, para voltar a aparecer na camada de 7 dias do mapa. Se o usuário demo existir, ele é o autor. Não cria medição, alerta nem e-mail. Rode depois de `cadastrar_areas_reais` (e de `criar_usuario_demo`, se quiser o usuário demo como autor). |
 | `python manage.py populate_parauapebas` | Atalho mantido por compatibilidade: chama `cadastrar_areas_reais`. |
 | `python manage.py geocodificar_areas` | Preenche latitude/longitude das áreas sem coordenadas, pelo endereço (Nominatim). |
 
@@ -248,6 +255,23 @@ curl -H "Authorization: Bearer <access_token>" \
 - **Gráfico de distribuição** de níveis de risco
 - **Lista de registros recentes**
 - **Alertas mais recentes** com categorização visual
+- **Relatos de moradores**: total aprovado (e, para o administrador, quantos aguardam análise)
+
+### 🙋 Relato de alagamento (participação cidadã)
+
+O morador ajuda a Defesa Civil avisando onde alagou. O fluxo é:
+
+1. **Morador relata** (usuário logado, menu "Relatar alagamento"): informa rua, bairro, até onde chegou a água (estimativa), descrição e foto opcionais, e clica no mini mapa para marcar o local. Sem clique, o sistema tenta achar o local pelo endereço. O relato fica **pendente** e os administradores com e-mail cadastrado recebem um aviso.
+2. **Administrador analisa** (menu "Relatos", com contador de pendentes): vê foto, local num mini mapa, nível estimado, bairro, data e quem enviou. Pode **aprovar**, vinculando o relato a uma área de risco existente (as mais próximas aparecem primeiro) ou criando uma área nova a partir dele, ou **rejeitar**, informando o motivo.
+3. **Aprovado aparece no mapa** para todos, na camada "Relatos de moradores (últimos 7 dias)" (ícone roxo de pessoa), que pode ser ligada e desligada. O popup mostra rua, bairro, nível estimado e data, **nunca o nome do morador**.
+
+Regras:
+- Aprovar **não cria medição nem alerta**: o nível do morador é uma estimativa. Depois de aprovar, a tela oferece o atalho "Registrar medição nesta área", que abre o Monitoramento com a área já escolhida.
+- Cada usuário pode enviar até **5 relatos a cada 24 horas** (acima disso a API responde 429 com uma mensagem amigável).
+- O local precisa estar **dentro da região de Parauapebas** (a mesma usada na busca de endereço).
+- Só relatos **pendentes** podem ser aprovados ou rejeitados.
+- O morador acompanha seus relatos em "Meus relatos" (Pendente, Aprovado ou Rejeitado com o motivo).
+- **LGPD**: nome e e-mail do autor só aparecem para administradores. O público não vê nem o motivo das rejeições.
 
 ### 🔄 API REST Completa
 | Endpoint | Método | Descrição |
@@ -256,6 +280,9 @@ curl -H "Authorization: Bearer <access_token>" \
 | `/api/areas/<id>/` | GET/PUT/PATCH/DELETE | Detalhar (público) / Atualizar ou apagar área (só administrador) |
 | `/api/monitoramento/` | GET/POST | Listar (público) / Registrar medição (só administrador) |
 | `/api/alertas/` | GET | Listar alertas (público); alterar e resolver: só administrador |
+| `/api/relatos/` | GET/POST | Relatos de alagamento: listar (cada perfil vê o que pode) / enviar (usuário logado) |
+| `/api/relatos/<id>/aprovar/` | POST | Aprovar relato pendente (só administrador) |
+| `/api/relatos/<id>/rejeitar/` | POST | Rejeitar relato pendente com motivo (só administrador) |
 
 ### ⚡ Lógica Automática
 - **Detecção crítica**: quando o nível de água atinge 80 cm ou mais
@@ -333,6 +360,17 @@ curl -H "Authorization: Bearer <access_token>" \
 - `nivel`: Severidade
 - `resolvido`: Se o alerta já foi tratado
 - `data_hora`: Timestamp
+
+#### RelatoAlagamento
+- `autor`: Morador que enviou (visível só para administradores)
+- `nome`, `bairro`, `cidade`: Local do alagamento
+- `latitude`, `longitude`: Clique no mapa ou busca pelo endereço (dentro de Parauapebas)
+- `nivel_estimado`: Na calçada/rua (até 10 cm), até o tornozelo (10 a 30 cm), até o joelho (30 a 50 cm) ou acima do joelho (mais de 50 cm)
+- `descricao`, `foto`: Opcionais (foto até 5 MB)
+- `status`: Pendente, aprovado ou rejeitado
+- `area`: Área de risco vinculada na aprovação
+- `analisado_por`, `analisado_em`, `motivo_rejeicao`: Dados da análise
+- `data_hora`: Data do relato
 
 ### Configurações Importantes
 
@@ -576,6 +614,12 @@ Isso é implementado no método `save()` do modelo `RegistroMonitoramento` (`app
 | API: ler áreas, medições e alertas | ✅ | ✅ | ✅ |
 | API: criar, alterar ou apagar área / medição | ❌ (401/403) | ❌ (403) | ✅ |
 | API: alterar ou resolver alerta | ❌ (401/403) | ❌ (403) | ✅ |
+| Menu "Relatar alagamento" e envio de relato | ❌ (convite para entrar no mapa) | ✅ (até 5 em 24 h) | ✅ |
+| Ver relatos aprovados no mapa (sem autor) | ✅ | ✅ | ✅ |
+| Ver os próprios relatos pendentes/rejeitados ("Meus relatos") | ❌ | ✅ | ✅ |
+| Menu "Relatos" (análise, com contador de pendentes) | ❌ | ❌ (volta ao mapa com aviso) | ✅ |
+| Ver todos os relatos, com nome e e-mail do autor | ❌ | ❌ | ✅ |
+| Aprovar ou rejeitar relato | ❌ | ❌ (403) | ✅ |
 
 O aviso para o usuário comum é "Esta função é exclusiva da administração.". Assim ninguém de fora cria áreas falsas nem medições falsas (que gerariam alertas críticos e e-mails para a Defesa Civil).
 

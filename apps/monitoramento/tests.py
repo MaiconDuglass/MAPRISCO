@@ -964,3 +964,58 @@ class RelatoTelasTests(TestCase):
         self.assertIn('id="total-relatos-aprovados"', html_comum)
         self.assertNotIn('id="total-relatos-pendentes"', html_comum)
         self.assertIn('id="total-relatos-pendentes"', self.html('/dashboard/', self.admin))
+
+
+@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+class RelatosDemoCommandTests(TestCase):
+
+    def rodar(self):
+        out = StringIO()
+        call_command('relatos_demo', stdout=out)
+        return out.getvalue()
+
+    def setUp(self):
+        call_command('cadastrar_areas_reais', stdout=StringIO())
+
+    def test_cria_um_de_cada_status_marcado_como_simulado(self):
+        self.rodar()
+        relatos = RelatoAlagamento.objects.all()
+        self.assertEqual(sorted(r.status for r in relatos), ['aprovado', 'pendente', 'rejeitado'])
+        for relato in relatos:
+            self.assertTrue(relato.descricao.startswith('Relato simulado para demonstração'))
+        aprovado = relatos.get(status='aprovado')
+        self.assertEqual(aprovado.area.nome, AREAS_REAIS[0]['nome'])
+        self.assertTrue(relatos.get(status='rejeitado').motivo_rejeicao)
+
+    def test_relatos_simulados_ficam_dentro_de_parauapebas(self):
+        from .geocoding import dentro_de_parauapebas
+        self.rodar()
+        for relato in RelatoAlagamento.objects.all():
+            self.assertTrue(dentro_de_parauapebas(relato.latitude, relato.longitude), relato.nome)
+
+    def test_rodar_duas_vezes_nao_duplica(self):
+        self.rodar()
+        saida = self.rodar()
+        self.assertEqual(RelatoAlagamento.objects.count(), 3)
+        self.assertIn('0 relato(s) simulado(s) criado(s)', saida)
+
+    def test_nao_cria_medicao_alerta_nem_email(self):
+        User.objects.create_user('admin', email='admin@example.com', password='x', is_staff=True)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.rodar()
+        self.assertFalse(RegistroMonitoramento.objects.exists())
+        self.assertFalse(Alerta.objects.exists())
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_aprovado_aparece_no_mapa(self):
+        self.rodar()
+        response = APIClient().get('/api/relatos/', {'status': 'aprovado', 'dias': 7})
+        self.assertEqual(response.data['count'], 1)
+        self.assertNotIn('autor', str(response.data))
+
+    def test_sem_areas_reais_avisa_e_nao_cria_aprovado(self):
+        AreaRisco.objects.all().delete()
+        saida = self.rodar()
+        self.assertIn('cadastrar_areas_reais', saida)
+        self.assertFalse(RelatoAlagamento.objects.filter(status='aprovado').exists())
+        self.assertEqual(RelatoAlagamento.objects.count(), 2)
