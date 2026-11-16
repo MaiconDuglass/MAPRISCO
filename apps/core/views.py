@@ -42,6 +42,18 @@ def dashboard(request):
 def alertas(request):
     return render(request, 'alertas.html')
 
+@login_required
+def relatar(request):
+    """Morador relata um alagamento (analisado pela Defesa Civil antes de aparecer no mapa)."""
+    from apps.monitoramento.models import RelatoAlagamento
+    return render(request, 'relatar.html', {'niveis_estimados': RelatoAlagamento.NIVEL_ESTIMADO_CHOICES})
+
+@admin_required
+def relatos(request):
+    """Análise dos relatos de alagamento pelo administrador."""
+    from apps.monitoramento.models import AreaRisco
+    return render(request, 'relatos.html', {'niveis_risco': AreaRisco.NIVEL_RISCO_CHOICES})
+
 @admin_required
 def monitoramento(request):
     return render(request, 'monitoramento.html')

@@ -8,7 +8,7 @@
     <style>
         .stats {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(4, 1fr);
             gap: 10px;
             margin-bottom: 10px;
         }
@@ -27,6 +27,9 @@
         .stat.brand { background: linear-gradient(135deg, #2a3d66 0%, #15213b 100%); }
         .stat.danger { background: linear-gradient(135deg, #ed4b44 0%, #de332e 100%); }
         .stat.info { background: linear-gradient(135deg, #66b3cf 0%, #4a98b8 100%); }
+        .stat.relato { background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); }
+        .stat .sub { font-size: 0.78rem; font-weight: 600; opacity: 0.95; }
+        .stat .sub a { color: #fff; }
 
         .stat .value {
             font-size: 2.05rem;
@@ -325,6 +328,14 @@
             </div>
             <i class="fa-solid fa-clipboard-list fa-xl"></i>
         </article>
+        <article class="stat relato">
+            <div>
+                <div class="value" id="total-relatos-aprovados">0</div>
+                <div class="label">Relatos Aprovados</div>
+                {% if user.is_staff %}<div class="sub"><a href="/relatos/"><span id="total-relatos-pendentes">0</span> pendente(s) de análise</a></div>{% endif %}
+            </div>
+            <i class="fa-solid fa-people-group fa-xl"></i>
+        </article>
     </div>
 
     <div class="grid">
@@ -520,6 +531,17 @@
                     </tr>`).join('');
         }
 
+        // Card de relatos: aprovados para todos; pendentes só aparecem para o administrador
+        async function loadRelatosCard() {
+            try {
+                document.getElementById('total-relatos-aprovados').textContent = await fetchCount('/api/relatos/?status=aprovado');
+                const pendentes = document.getElementById('total-relatos-pendentes');
+                if (pendentes) pendentes.textContent = await fetchCount('/api/relatos/?status=pendente');
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
         async function loadDashboard() {
             try {
                 // Áreas: todas (o gráfico precisa de todas). Alertas e registros: só os 5 mais recentes,
@@ -537,6 +559,7 @@
                 document.getElementById('total-registros').textContent = registrosData.count ?? parseApiList(registrosData).length;
 
                 renderRegistrosTable(parseApiList(registrosData));
+                loadRelatosCard();
                 renderAlertasTable(parseApiList(alertasData));
                 // Um problema no gráfico não pode esconder as tabelas
                 try { renderChart(areas); } catch (chartError) { console.error(chartError); }

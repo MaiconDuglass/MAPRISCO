@@ -896,3 +896,71 @@ class RelatoAlagamentoApiTests(TestCase):
         self.morador.delete()
         relato.refresh_from_db()
         self.assertIsNone(relato.autor)
+
+
+class RelatoTelasTests(TestCase):
+    """Menu e páginas dos relatos para visitante, usuário comum e administrador."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.comum = User.objects.create_user(username='comum@exemplo.com', password='senha123')
+        cls.admin = User.objects.create_user(username='admin@exemplo.com', password='senha123', is_staff=True)
+
+    def html(self, url='/', usuario=None):
+        if usuario:
+            self.client.force_login(usuario)
+        return self.client.get(url).content.decode()
+
+    def menu(self, html):
+        inicio = html.index('<nav class="menu">')
+        return html[inicio:html.index('</nav>', inicio)]
+
+    def test_menu_relatar_so_para_logado(self):
+        self.assertNotIn('href="/relatar/"', self.menu(self.html()))
+        self.assertIn('Relatar alagamento', self.menu(self.html(usuario=self.comum)))
+        self.assertIn('href="/relatar/"', self.menu(self.html(usuario=self.admin)))
+
+    def test_menu_relatos_so_para_admin(self):
+        self.assertNotIn('href="/relatos/"', self.menu(self.html()))
+        self.assertNotIn('href="/relatos/"', self.menu(self.html(usuario=self.comum)))
+        self.assertIn('href="/relatos/"', self.menu(self.html(usuario=self.admin)))
+
+    def test_contador_de_pendentes_no_menu_do_admin(self):
+        RelatoAlagamento.objects.create(nome='Rua A', bairro='B', nivel_estimado='rua')
+        RelatoAlagamento.objects.create(nome='Rua C', bairro='D', nivel_estimado='rua', status='aprovado')
+        menu = self.menu(self.html(usuario=self.admin))
+        self.assertIn('<span class="menu-badge"', menu)
+        self.assertIn('>1</span>', menu)
+        self.assertNotIn('menu-badge', self.menu(self.html(usuario=self.comum)))
+
+    def test_pagina_relatar(self):
+        self.assertRedirects(self.client.get('/relatar/'), '/login/?next=/relatar/')
+        html = self.html('/relatar/', self.comum)
+        self.assertIn('id="relatoForm"', html)
+        self.assertIn('analisado pela Defesa Civil antes de aparecer no mapa', html)
+        self.assertIn('Até o joelho (30 a 50 cm)', html)
+        self.assertIn('Meus relatos', html)
+
+    def test_pagina_de_analise_so_para_admin(self):
+        self.assertRedirects(self.client.get('/relatos/'), '/login/?next=/relatos/')
+        self.client.force_login(self.comum)
+        response = self.client.get('/relatos/', follow=True)
+        self.assertRedirects(response, '/')
+        self.assertContains(response, 'Esta função é exclusiva da administração.')
+        html = self.html('/relatos/', self.admin)
+        self.assertIn('id="aprovarForm"', html)
+        self.assertIn('id="rejeitarForm"', html)
+        self.assertIn('Registrar medição nesta área', html)
+
+    def test_mapa_convida_visitante_a_entrar_para_relatar(self):
+        html = self.html()
+        self.assertIn('Viu um alagamento?', html)
+        self.assertIn('para relatar', html)
+        self.assertIn('Relatos de moradores (últimos 7 dias)', html)
+        self.assertIn('Relato de morador', html)
+
+    def test_dashboard_card_de_relatos(self):
+        html_comum = self.html('/dashboard/', self.comum)
+        self.assertIn('id="total-relatos-aprovados"', html_comum)
+        self.assertNotIn('id="total-relatos-pendentes"', html_comum)
+        self.assertIn('id="total-relatos-pendentes"', self.html('/dashboard/', self.admin))

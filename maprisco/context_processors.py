@@ -13,15 +13,19 @@ def map_settings(request):
     }
 
 def navbar(request):
-    """Dados da barra superior: primeiro nome do usuário e total de alertas abertos."""
-    from apps.monitoramento.models import Alerta
+    """Dados da barra superior: primeiro nome do usuário, alertas abertos e relatos pendentes (admin)."""
+    from apps.monitoramento.models import Alerta, RelatoAlagamento
 
     user = getattr(request, 'user', None)
     first_name = ''
     open_alerts_count = 0
+    relatos_pendentes_count = 0
     if user is not None and user.is_authenticated:
         # O sino de alertas só aparece para quem está logado
         open_alerts_count = Alerta.objects.filter(resolvido=False).count()
+        if user.is_staff:
+            # Contador do menu Relatos (só o administrador analisa relatos)
+            relatos_pendentes_count = RelatoAlagamento.objects.filter(status='pendente').count()
         if user.first_name.strip():
             first_name = user.first_name.strip().split()[0].title()
         else:
@@ -30,4 +34,5 @@ def navbar(request):
     return {
         'user_first_name': first_name,
         'open_alerts_count': open_alerts_count,
+        'relatos_pendentes_count': relatos_pendentes_count,
     }

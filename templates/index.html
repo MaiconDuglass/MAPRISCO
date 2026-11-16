@@ -185,6 +185,45 @@
         }
 
         .map-offline[hidden] { display: none; }
+
+        /* Relato de morador: marcador roxo com ícone de pessoa (diferente do círculo das áreas) */
+        .relato-icone {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            background: #7c3aed;
+            border: 2px solid #fff;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+            color: #fff;
+            display: grid;
+            place-items: center;
+            font-size: 0.8rem;
+        }
+
+        .legend-relato {
+            display: inline-grid;
+            place-items: center;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #7c3aed;
+            color: #fff;
+            font-size: 0.55rem;
+            margin-right: 5px;
+            vertical-align: middle;
+        }
+
+        .convite-relato {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 10px 0 0;
+            font-size: 0.86rem;
+            color: var(--text-2);
+        }
+
+        .convite-relato i { color: #7c3aed; }
+        .convite-relato a { color: #6d28d9; font-weight: 600; }
         .map-offline i { margin-top: 3px; }
         .map-offline strong { display: block; }
 
@@ -416,6 +455,15 @@
         </div>
     </div>
 
+    <p class="convite-relato">
+        <i class="fa-solid fa-house-flood-water"></i>
+        {% if user.is_authenticated %}
+        <span>Viu um alagamento? <a href="{% url 'relatar' %}">Relate aqui</a>. A Defesa Civil analisa antes de aparecer no mapa.</span>
+        {% else %}
+        <span>Viu um alagamento? <a href="{% url 'login' %}?next={% url 'relatar' %}">Entre</a> ou <a href="{% url 'register' %}">crie uma conta</a> para relatar.</span>
+        {% endif %}
+    </p>
+
     <div class="map-wrap">
         <div id="map"></div>
         <div class="map-offline" id="mapOffline" role="status" hidden>
@@ -522,7 +570,13 @@
         });
 
         ruasLayer.addTo(map);
-        L.control.layers({ 'Ruas': ruasLayer, 'Satélite': satelliteLayer }, null, { position: 'topleft', collapsed: false }).addTo(map);
+        // Relatos de moradores aprovados nos últimos 7 dias (pode ser ligado e desligado)
+        const relatosLayer = L.layerGroup().addTo(map);
+        L.control.layers(
+            { 'Ruas': ruasLayer, 'Satélite': satelliteLayer },
+            { 'Relatos de moradores (últimos 7 dias)': relatosLayer },
+            { position: 'topleft', collapsed: false }
+        ).addTo(map);
 
         // Sem internet o fundo do mapa (ruas/satélite) não carrega: mostra um aviso amigável.
         // As áreas continuam aparecendo, porque vêm do próprio servidor do MAPRISCO.
@@ -553,7 +607,9 @@
                 <div><span class="legend-dot" style="background:#ef4444"></span>Crítico</div>
                 <div><span class="legend-dot" style="background:#f59e0b"></span>Alerta</div>
                 <div><span class="legend-dot" style="background:#22c55e"></span>Seguro</div>
-                <small class="legend-nota">Pela última medição.<br>Sem medição: risco cadastrado.</small>`;
+                <small class="legend-nota">Pela última medição.<br>Sem medição: risco cadastrado.</small>
+                <div style="margin-top:6px"><span class="legend-relato"><i class="fa-solid fa-person"></i></span>Relato de morador</div>
+                <small class="legend-nota">Alagamento relatado por morador e<br>aprovado pela Defesa Civil (7 dias).<br>Não é medição oficial.</small>`;
             return div;
         };
         legend.addTo(map);
@@ -867,6 +923,35 @@
 
         // Atualização automática: busca as áreas de novo (com a situação da última medição)
         // sem mexer no zoom, nos filtros nem no cartão aberto. Se falhar, mantém o que está na tela.
+        const iconeRelato = L.divIcon({
+            className: '',
+            html: '<div class="relato-icone"><i class="fa-solid fa-person"></i></div>',
+            iconSize: [26, 26],
+            iconAnchor: [13, 13],
+            popupAnchor: [0, -12],
+        });
+
+        // Só relatos aprovados dos últimos 7 dias, sem nenhum dado do autor
+        async function loadRelatos() {
+            try {
+                const relatos = await fetchAll('/api/relatos/?status=aprovado&dias=7');
+                relatosLayer.clearLayers();
+                relatos.forEach((r) => {
+                    const lat = Number(r.latitude);
+                    const lng = Number(r.longitude);
+                    if (r.latitude === null || r.longitude === null || Number.isNaN(lat) || Number.isNaN(lng)) return;
+                    L.marker([lat, lng], { icon: iconeRelato, title: 'Relato de morador' })
+                        .bindPopup(`<strong>${esc(r.nome)}</strong><br>${esc(r.bairro)}<br>` +
+                            `<i class="fa-solid fa-water"></i> ${esc(r.nivel_estimado_label)}<br>` +
+                            `<small>Relato de morador em ${fmtDate(r.data_hora)}</small>`)
+                        .addTo(relatosLayer);
+                });
+            } catch (error) {
+                // Sem relatos o mapa continua funcionando normalmente
+                console.error(error);
+            }
+        }
+
         const INTERVALO_ATUALIZACAO_MS = 30 * 1000;
         let atualizando = false;
 
@@ -1000,6 +1085,8 @@
             setInterval(loadWeatherInRealtime, 60 * 1000);
             await loadAreas();
             setInterval(atualizarAreas, INTERVALO_ATUALIZACAO_MS);
+            loadRelatos();
+            setInterval(loadRelatos, INTERVALO_ATUALIZACAO_MS);
 
             // Link direto com busca: /?q=nome
             const q = new URLSearchParams(window.location.search).get('q');

@@ -1,0 +1,445 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Relatos de moradores - MAPRISCO{% endblock %}
+{% block page_title %}Relatos{% endblock %}
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'leaflet/leaflet.css' %}">
+    <style>
+        .filtro-status {
+            border-radius: 8px;
+            border: 1px solid #d6dbe8;
+            min-height: 40px;
+            padding: 0 12px;
+            font-size: 0.9rem;
+            color: #434c61;
+            background: #fff;
+        }
+
+        .relato-card {
+            display: grid;
+            grid-template-columns: 260px minmax(0, 1fr);
+            gap: 16px;
+            margin-bottom: 14px;
+        }
+
+        .relato-midia { display: grid; gap: 8px; align-content: start; }
+
+        .relato-mapa {
+            height: 170px;
+            border-radius: 8px;
+            border: 1px solid #d6dbe8;
+            background: #eef1f5;
+        }
+
+        .relato-foto {
+            width: 100%;
+            max-height: 190px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 1px solid #d6dbe8;
+        }
+
+        .relato-topo {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .relato-titulo { margin: 0; font-size: 1.1rem; font-weight: 700; }
+        .relato-linha { color: #4f586d; font-size: 0.9rem; margin-top: 4px; }
+        .relato-linha i { width: 18px; color: #7a8398; }
+        .relato-descricao { margin: 10px 0 0; color: #434c61; font-size: 0.9rem; white-space: pre-line; }
+
+        .status-badge {
+            border-radius: 999px;
+            padding: 3px 10px;
+            font-size: 0.76rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .status-badge.pendente { background: #fff4d6; color: #8a5a00; }
+        .status-badge.aprovado { background: #dcf5dc; color: #22682a; }
+        .status-badge.rejeitado { background: #fde2e2; color: #a12626; }
+
+        .relato-acoes { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+
+        .btn-rejeitar {
+            border: 1px solid #f3c2c2;
+            background: #fff5f5;
+            color: #b42323;
+            border-radius: 8px;
+            min-height: 40px;
+            padding: 0 16px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        .btn-link-medicao {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border-radius: 8px;
+            min-height: 40px;
+            padding: 0 16px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            color: #fff;
+            text-decoration: none;
+            background: linear-gradient(145deg, #2a3d66 0%, #15213b 100%);
+        }
+
+        .btn-link-medicao:hover { color: #fff; filter: brightness(1.1); }
+
+        .relato-analise {
+            margin-top: 12px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            background: #f5f7fa;
+            font-size: 0.86rem;
+            color: #4f586d;
+        }
+
+        .relato-analise.rejeitado { background: #fff5f5; color: #7a2a2a; border-left: 3px solid var(--danger); }
+
+        .vazio { color: var(--text-2); text-align: center; padding: 24px 0; }
+
+        /* Janelas de aprovar e rejeitar (mesmo visual do confirmar() do comum.js) */
+        .analise-card { width: min(480px, 100%); }
+        .analise-card label { font-weight: 500; font-size: 0.92rem; color: #4a5266; }
+        .analise-opcao { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0 6px; }
+        .analise-opcao input { margin-top: 4px; }
+
+        .analise-card select,
+        .analise-card textarea {
+            width: 100%;
+            border-radius: 4px;
+            border: 1px solid #d6dbe8;
+            min-height: 38px;
+            padding: 8px 10px;
+            font-size: 0.92rem;
+            color: #434c61;
+            margin-bottom: 4px;
+        }
+
+        .analise-card textarea { min-height: 90px; resize: vertical; }
+        .analise-erro { color: #ca2f2f; font-size: 0.85rem; min-height: 1.2em; margin: 6px 0 12px; }
+        .btn-aprovar-ok { border: none; background: var(--brand-2); color: #fff; }
+
+        @media (max-width: 760px) {
+            .relato-card { grid-template-columns: 1fr; }
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<section class="page">
+    <div class="page-head">
+        <div>
+            <h1>Relatos de moradores</h1>
+            <p>Analise os alagamentos relatados. Só os aprovados aparecem no mapa, sem o nome do morador.</p>
+        </div>
+        <select class="filtro-status" id="filtroStatus" aria-label="Filtrar por status">
+            <option value="pendente">Pendentes</option>
+            <option value="aprovado">Aprovados</option>
+            <option value="rejeitado">Rejeitados</option>
+            <option value="">Todos</option>
+        </select>
+    </div>
+
+    <div id="listaRelatos"><p class="vazio">Carregando...</p></div>
+</section>
+
+<!-- Aprovar: vincular a uma área existente ou criar uma nova -->
+<div class="confirmar-fundo" id="aprovarModal" hidden>
+    <form class="confirmar-card analise-card" id="aprovarForm" role="dialog" aria-modal="true" aria-labelledby="aprovarTitulo">
+        <h3 id="aprovarTitulo">Aprovar relato</h3>
+        <p id="aprovarLocal"></p>
+        <div id="aprovarCampos">
+            <label class="analise-opcao"><input type="radio" name="modo" value="vincular" checked> Vincular a uma área de risco existente</label>
+            <select id="aprovarArea" aria-label="Área de risco"></select>
+            <label class="analise-opcao"><input type="radio" name="modo" value="criar"> Criar uma área de risco nova a partir do relato</label>
+            <select id="aprovarNivel" aria-label="Nível de risco da área nova" disabled>
+                {% for valor, rotulo in niveis_risco %}
+                <option value="{{ valor }}"{% if valor == 'medio' %} selected{% endif %}>Nível de risco: {{ rotulo }}</option>
+                {% endfor %}
+            </select>
+            <small style="color:var(--text-2)">Aprovar não registra medição nem alerta: o nível informado pelo morador é só uma estimativa.</small>
+        </div>
+        <div class="analise-erro" id="aprovarErro" role="alert"></div>
+        <div class="confirmar-acoes" id="aprovarAcoes">
+            <button type="button" class="btn-cancelar" data-fechar>Cancelar</button>
+            <button type="submit" class="btn-aprovar-ok" id="aprovarOk">Aprovar</button>
+        </div>
+        <!-- Depois de aprovar: atalho para registrar uma medição real na área -->
+        <div class="confirmar-acoes" id="aprovadoAcoes" hidden>
+            <button type="button" class="btn-cancelar" data-fechar>Fechar</button>
+            <a class="btn-link-medicao" id="aprovadoMedir" href="/monitoramento/"><i class="fa-solid fa-ruler-vertical"></i> Registrar medição nesta área</a>
+        </div>
+    </form>
+</div>
+
+<!-- Rejeitar: motivo obrigatório (o morador vê o motivo em "Meus relatos") -->
+<div class="confirmar-fundo" id="rejeitarModal" hidden>
+    <form class="confirmar-card analise-card" id="rejeitarForm" role="dialog" aria-modal="true" aria-labelledby="rejeitarTitulo">
+        <h3 id="rejeitarTitulo">Rejeitar relato</h3>
+        <p id="rejeitarLocal"></p>
+        <label for="rejeitarMotivo">Motivo (o morador verá esta mensagem)</label>
+        <textarea id="rejeitarMotivo" maxlength="500" placeholder="Ex.: local fora de área alagável; relato duplicado; foto não mostra alagamento."></textarea>
+        <div class="analise-erro" id="rejeitarErro" role="alert"></div>
+        <div class="confirmar-acoes">
+            <button type="button" class="btn-cancelar" data-fechar>Cancelar</button>
+            <button type="submit" class="btn-perigo" id="rejeitarOk">Rejeitar</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+    <script src="{% static 'leaflet/leaflet.js' %}"></script>
+    <script src="{% static 'js/mini_mapa.js' %}"></script>
+    <script>
+        const lista = document.getElementById('listaRelatos');
+        const filtroStatus = document.getElementById('filtroStatus');
+        let relatos = [];
+        let areas = [];
+        let miniMapas = [];
+        let relatoAtual = null;
+
+        function enviar(url, corpo) {
+            return fetch(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                body: JSON.stringify(corpo),
+            }).then(async (response) => {
+                const dados = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(dados.detail || Object.values(dados).flat().join(' ') || 'Não foi possível concluir.');
+                }
+                return dados;
+            });
+        }
+
+        // Distância aproximada em km (para sugerir a área mais próxima do relato)
+        function distanciaKm(lat1, lng1, lat2, lng2) {
+            const rad = (g) => g * Math.PI / 180;
+            const a = Math.sin(rad(lat2 - lat1) / 2) ** 2 +
+                Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(rad(lng2 - lng1) / 2) ** 2;
+            return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+
+        function atualizarContadorMenu(delta) {
+            const badge = document.querySelector('.menu-badge');
+            if (!badge) return;
+            const valor = (parseInt(badge.textContent, 10) || 0) + delta;
+            if (valor <= 0) badge.remove();
+            else badge.textContent = valor;
+        }
+
+        function cardRelato(r) {
+            const temLocal = r.latitude !== null && r.longitude !== null;
+            const autor = r.autor_nome ? `${esc(r.autor_nome)} (${esc(r.autor_email)})` : 'Autor não informado';
+            let analise = '';
+            if (r.status === 'aprovado') {
+                analise = `<div class="relato-analise"><i class="fa-solid fa-check"></i> Aprovado${r.analisado_por_nome ? ' por ' + esc(r.analisado_por_nome) : ''} em ${fmtDate(r.analisado_em)}${r.area_nome ? ` · Área: <strong>${esc(r.area_nome)}</strong>` : ''}</div>`;
+            } else if (r.status === 'rejeitado') {
+                analise = `<div class="relato-analise rejeitado"><strong>Motivo da rejeição:</strong> ${esc(r.motivo_rejeicao || '-')}<br><small>${r.analisado_por_nome ? 'Por ' + esc(r.analisado_por_nome) + ' em ' : 'Em '}${fmtDate(r.analisado_em)}</small></div>`;
+            }
+            let acoes = '';
+            if (r.status === 'pendente') {
+                acoes = `<div class="relato-acoes">
+                    <button type="button" class="btn-main" data-aprovar="${r.id}"><i class="fa-solid fa-check"></i> Aprovar</button>
+                    <button type="button" class="btn-rejeitar" data-rejeitar="${r.id}"><i class="fa-solid fa-xmark"></i> Rejeitar</button>
+                </div>`;
+            } else if (r.status === 'aprovado' && r.area) {
+                acoes = `<div class="relato-acoes"><a class="btn-link-medicao" href="/monitoramento/?area=${encodeURIComponent(r.area)}"><i class="fa-solid fa-ruler-vertical"></i> Registrar medição nesta área</a></div>`;
+            }
+            return `
+                <article class="panel relato-card">
+                    <div class="relato-midia">
+                        ${temLocal ? `<div class="relato-mapa" id="mapaRelato${r.id}" aria-label="Local do relato no mapa"></div>` : '<div class="relato-mapa" style="display:grid;place-items:center;color:#7a8398;font-size:0.85rem;">Sem localização</div>'}
+                        ${r.foto ? `<a href="${esc(r.foto)}" target="_blank" rel="noopener"><img class="relato-foto" src="${esc(r.foto)}" alt="Foto enviada pelo morador"></a>` : ''}
+                    </div>
+                    <div>
+                        <div class="relato-topo">
+                            <h3 class="relato-titulo">${esc(r.nome)} - ${esc(r.bairro)}</h3>
+                            <span class="status-badge ${esc(r.status)}">${esc(r.status_label)}</span>
+                        </div>
+                        <div class="relato-linha"><i class="fa-solid fa-water"></i> ${esc(r.nivel_estimado_label)}</div>
+                        <div class="relato-linha"><i class="fa-regular fa-clock"></i> ${fmtDate(r.data_hora)}</div>
+                        <div class="relato-linha"><i class="fa-solid fa-user"></i> ${autor}</div>
+                        ${r.descricao ? `<p class="relato-descricao">${esc(r.descricao)}</p>` : ''}
+                        ${analise}
+                        ${acoes}
+                    </div>
+                </article>`;
+        }
+
+        function renderLista() {
+            miniMapas.forEach((m) => m.remove());
+            miniMapas = [];
+            if (!relatos.length) {
+                lista.innerHTML = '<div class="panel vazio">Nenhum relato com este status.</div>';
+                return;
+            }
+            lista.innerHTML = relatos.map(cardRelato).join('');
+            relatos.forEach((r) => {
+                if (r.latitude !== null && r.longitude !== null) {
+                    miniMapas.push(criarMapaPonto(`mapaRelato${r.id}`, Number(r.latitude), Number(r.longitude)));
+                }
+            });
+        }
+
+        async function carregarRelatos() {
+            const status = filtroStatus.value;
+            try {
+                relatos = await fetchAll('/api/relatos/' + (status ? `?status=${encodeURIComponent(status)}` : ''));
+                renderLista();
+            } catch (error) {
+                console.error(error);
+                lista.innerHTML = '<div class="panel vazio">Não foi possível carregar os relatos.</div>';
+            }
+        }
+
+        // ---------- Aprovar ----------
+        const aprovarModal = document.getElementById('aprovarModal');
+        const aprovarForm = document.getElementById('aprovarForm');
+        const aprovarArea = document.getElementById('aprovarArea');
+        const aprovarNivel = document.getElementById('aprovarNivel');
+        const aprovarErro = document.getElementById('aprovarErro');
+
+        function modoAprovacao() {
+            return aprovarForm.querySelector('input[name="modo"]:checked').value;
+        }
+
+        aprovarForm.querySelectorAll('input[name="modo"]').forEach((radio) => radio.addEventListener('change', () => {
+            aprovarArea.disabled = modoAprovacao() !== 'vincular';
+            aprovarNivel.disabled = modoAprovacao() !== 'criar';
+        }));
+
+        function abrirAprovar(relato) {
+            relatoAtual = relato;
+            document.getElementById('aprovarLocal').textContent = `${relato.nome} - ${relato.bairro} (${relato.nivel_estimado_label})`;
+            // Áreas da mais próxima para a mais distante do local relatado
+            const lat = Number(relato.latitude);
+            const lng = Number(relato.longitude);
+            const opcoes = areas.map((a) => {
+                const d = (a.latitude !== null && a.longitude !== null && relato.latitude !== null)
+                    ? distanciaKm(lat, lng, Number(a.latitude), Number(a.longitude)) : null;
+                return { area: a, d };
+            }).sort((x, y) => (x.d ?? Infinity) - (y.d ?? Infinity));
+            aprovarArea.innerHTML = opcoes.length
+                ? opcoes.map(({ area, d }) => `<option value="${area.id}">${esc(area.nome)}${area.bairro ? ' - ' + esc(area.bairro) : ''}${d !== null ? ` (${d.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km)` : ''}</option>`).join('')
+                : '<option value="">Nenhuma área cadastrada</option>';
+            const radioVincular = aprovarForm.querySelector('input[value="vincular"]');
+            const radioCriar = aprovarForm.querySelector('input[value="criar"]');
+            (opcoes.length ? radioVincular : radioCriar).checked = true;
+            radioVincular.disabled = !opcoes.length;
+            radioVincular.dispatchEvent(new Event('change'));
+            radioCriar.dispatchEvent(new Event('change'));
+            aprovarErro.textContent = '';
+            document.getElementById('aprovarTitulo').textContent = 'Aprovar relato';
+            document.getElementById('aprovarCampos').hidden = false;
+            document.getElementById('aprovarAcoes').hidden = false;
+            document.getElementById('aprovadoAcoes').hidden = true;
+            aprovarModal.hidden = false;
+        }
+
+        aprovarForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            if (!relatoAtual) return;
+            const corpo = modoAprovacao() === 'criar'
+                ? { criar_area: true, nivel_risco: aprovarNivel.value }
+                : { area: Number(aprovarArea.value) };
+            const botao = document.getElementById('aprovarOk');
+            botao.disabled = true;
+            aprovarErro.textContent = '';
+            try {
+                const aprovado = await enviar(`/api/relatos/${relatoAtual.id}/aprovar/`, corpo);
+                avisar('Relato aprovado: já aparece no mapa.', 'sucesso');
+                atualizarContadorMenu(-1);
+                if (corpo.criar_area) areas = await fetchAll('/api/areas/');
+                // Mostra o atalho para registrar uma medição real na área vinculada
+                document.getElementById('aprovarTitulo').textContent = 'Relato aprovado';
+                document.getElementById('aprovarLocal').textContent = `Vinculado à área "${aprovado.area_nome}". Se a equipe medir o nível da água no local, registre a medição.`;
+                document.getElementById('aprovadoMedir').href = `/monitoramento/?area=${encodeURIComponent(aprovado.area)}`;
+                document.getElementById('aprovarCampos').hidden = true;
+                document.getElementById('aprovarAcoes').hidden = true;
+                document.getElementById('aprovadoAcoes').hidden = false;
+                carregarRelatos();
+            } catch (error) {
+                aprovarErro.textContent = error.message;
+            } finally {
+                botao.disabled = false;
+            }
+        });
+
+        // ---------- Rejeitar ----------
+        const rejeitarModal = document.getElementById('rejeitarModal');
+        const rejeitarForm = document.getElementById('rejeitarForm');
+        const rejeitarMotivo = document.getElementById('rejeitarMotivo');
+        const rejeitarErro = document.getElementById('rejeitarErro');
+
+        function abrirRejeitar(relato) {
+            relatoAtual = relato;
+            document.getElementById('rejeitarLocal').textContent = `${relato.nome} - ${relato.bairro}`;
+            rejeitarMotivo.value = '';
+            rejeitarErro.textContent = '';
+            rejeitarModal.hidden = false;
+            rejeitarMotivo.focus();
+        }
+
+        rejeitarForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const motivo = rejeitarMotivo.value.trim();
+            if (!motivo) {
+                rejeitarErro.textContent = 'Informe o motivo da rejeição.';
+                return;
+            }
+            const botao = document.getElementById('rejeitarOk');
+            botao.disabled = true;
+            try {
+                await enviar(`/api/relatos/${relatoAtual.id}/rejeitar/`, { motivo });
+                rejeitarModal.hidden = true;
+                avisar('Relato rejeitado. O morador verá o motivo.', 'sucesso');
+                atualizarContadorMenu(-1);
+                carregarRelatos();
+            } catch (error) {
+                rejeitarErro.textContent = error.message;
+            } finally {
+                botao.disabled = false;
+            }
+        });
+
+        // ---------- Eventos gerais ----------
+        [aprovarModal, rejeitarModal].forEach((modal) => {
+            modal.addEventListener('click', (event) => {
+                if (event.target === modal || event.target.closest('[data-fechar]')) modal.hidden = true;
+            });
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') { aprovarModal.hidden = true; rejeitarModal.hidden = true; }
+        });
+
+        lista.addEventListener('click', (event) => {
+            const aprovar = event.target.closest('[data-aprovar]');
+            const rejeitar = event.target.closest('[data-rejeitar]');
+            const id = Number((aprovar || rejeitar)?.dataset.aprovar || (aprovar || rejeitar)?.dataset.rejeitar);
+            const relato = relatos.find((r) => r.id === id);
+            if (!relato) return;
+            if (aprovar) abrirAprovar(relato);
+            else abrirRejeitar(relato);
+        });
+
+        filtroStatus.addEventListener('change', carregarRelatos);
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            try { areas = await fetchAll('/api/areas/'); } catch (error) { console.error(error); }
+            carregarRelatos();
+        });
+    </script>
+{% endblock %}

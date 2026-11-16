@@ -134,6 +134,22 @@
             text-align: center;
         }
 
+        /* Contador no menu (relatos pendentes), no mesmo estilo do sino de alertas */
+        .menu-badge {
+            margin-left: auto;
+            min-width: 20px;
+            height: 20px;
+            padding: 0 6px;
+            border-radius: 10px;
+            background: var(--danger);
+            color: #fff;
+            font-size: 0.7rem;
+            font-weight: 700;
+            display: grid;
+            place-items: center;
+            line-height: 1;
+        }
+
         .sidebar-user {
             margin: 0 18px;
             padding-top: 14px;
@@ -542,7 +558,14 @@
                 <a class="menu-link{% if request.resolver_match.url_name == 'alertas' %} active{% endif %}" href="/alertas/">
                     <i class="fa-solid fa-bell"></i>Alertas
                 </a>
+                <a class="menu-link{% if request.resolver_match.url_name == 'relatar' %} active{% endif %}" href="/relatar/">
+                    <i class="fa-solid fa-house-flood-water"></i>Relatar alagamento
+                </a>
                 {% if user.is_staff %}
+                <a class="menu-link{% if request.resolver_match.url_name == 'relatos' %} active{% endif %}" href="/relatos/">
+                    <i class="fa-solid fa-people-group"></i>Relatos
+                    {% if relatos_pendentes_count %}<span class="menu-badge" title="{{ relatos_pendentes_count }} relato(s) aguardando análise">{% if relatos_pendentes_count > 99 %}99+{% else %}{{ relatos_pendentes_count }}{% endif %}</span>{% endif %}
+                </a>
                 <a class="menu-link{% if request.resolver_match.url_name == 'monitoramento' %} active{% endif %}" href="/monitoramento/">
                     <i class="fa-solid fa-seedling"></i>Monitoramento
                 </a>

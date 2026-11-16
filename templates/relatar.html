@@ -1,0 +1,308 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Relatar alagamento - MAPRISCO{% endblock %}
+{% block page_title %}Relatar alagamento{% endblock %}
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'leaflet/leaflet.css' %}">
+    <style>
+        .relato-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 16px;
+            align-items: start;
+        }
+
+        .aviso-analise {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            background: #eef6ff;
+            border: 1px solid #cfe3fb;
+            color: #24496f;
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 0.86rem;
+            margin-bottom: 14px;
+        }
+
+        .aviso-analise i { margin-top: 2px; color: #3b82f6; }
+
+        .field { display: grid; gap: 6px; margin-bottom: 10px; }
+        .field label { color: #4a5266; font-weight: 500; font-size: 0.92rem; }
+        .field .required::after { content: ' *'; color: #df3f3f; }
+
+        .field input,
+        .field select,
+        .field textarea {
+            width: 100%;
+            border-radius: 4px;
+            border: 1px solid #d6dbe8;
+            min-height: 38px;
+            padding: 8px 10px;
+            font-size: 0.92rem;
+            color: #434c61;
+            outline: none;
+        }
+
+        .field textarea { min-height: 82px; resize: vertical; }
+
+        .pick-map {
+            height: 300px;
+            border-radius: 8px;
+            border: 1px solid #d6dbe8;
+            cursor: crosshair;
+        }
+
+        .pick-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.82rem;
+            color: var(--text-2);
+            margin-top: 6px;
+        }
+
+        .pick-info button {
+            border: none;
+            background: none;
+            color: var(--danger);
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .form-message { margin: 6px 0 10px; font-size: 0.86rem; color: #ca2f2f; min-height: 1.2em; }
+
+        .section-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            margin: 0 0 12px;
+        }
+
+        .relato-item {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 14px;
+            margin-bottom: 10px;
+            display: grid;
+            gap: 4px;
+        }
+
+        .relato-topo {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .relato-local { font-weight: 700; }
+        .relato-meta { color: var(--text-2); font-size: 0.84rem; }
+
+        .status-badge {
+            border-radius: 999px;
+            padding: 3px 10px;
+            font-size: 0.76rem;
+            font-weight: 700;
+        }
+
+        .status-badge.pendente { background: #fff4d6; color: #8a5a00; }
+        .status-badge.aprovado { background: #dcf5dc; color: #22682a; }
+        .status-badge.rejeitado { background: #fde2e2; color: #a12626; }
+
+        .relato-motivo {
+            background: #fff5f5;
+            border-left: 3px solid var(--danger);
+            padding: 6px 10px;
+            font-size: 0.85rem;
+            color: #7a2a2a;
+            border-radius: 4px;
+            margin-top: 4px;
+        }
+
+        .vazio { color: var(--text-2); font-size: 0.9rem; }
+
+        @media (max-width: 980px) {
+            .relato-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<section class="page">
+    <div class="page-head">
+        <div>
+            <h1>Relatar alagamento</h1>
+            <p>Viu uma rua alagada? Avise a Defesa Civil.</p>
+        </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:16px;">
+        <div class="aviso-analise">
+            <i class="fa-solid fa-circle-info"></i>
+            <span>Seu relato será analisado pela Defesa Civil antes de aparecer no mapa. Seu nome e e-mail não são mostrados ao público. Você pode enviar até 5 relatos a cada 24 horas.</span>
+        </div>
+
+        <form id="relatoForm" class="relato-grid" novalidate>
+            <div>
+                <div class="field">
+                    <label class="required" for="relatoNome">Rua / Endereço</label>
+                    <input type="text" id="relatoNome" name="nome" maxlength="100" placeholder="Rua das Palmeiras" required>
+                </div>
+                <div class="field">
+                    <label class="required" for="relatoBairro">Bairro</label>
+                    <input type="text" id="relatoBairro" name="bairro" maxlength="100" placeholder="Liberdade" required>
+                </div>
+                <div class="field">
+                    <label class="required" for="relatoNivel">Até onde chegou a água?</label>
+                    <select id="relatoNivel" name="nivel_estimado" required>
+                        <option value="">Escolha uma opção</option>
+                        {% for valor, rotulo in niveis_estimados %}
+                        <option value="{{ valor }}">{{ rotulo }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="relatoDescricao">Descrição (opcional)</label>
+                    <textarea id="relatoDescricao" name="descricao" placeholder="Ex.: a água cobriu a calçada e entrou em duas casas."></textarea>
+                </div>
+                <div class="field">
+                    <label for="relatoFoto">Foto (opcional, até 5 MB)</label>
+                    <input type="file" id="relatoFoto" name="foto" accept="image/*">
+                </div>
+            </div>
+
+            <div>
+                <div class="field">
+                    <label>Local do alagamento no mapa</label>
+                    <div id="pickMap" class="pick-map"></div>
+                    <div class="pick-info">
+                        <span id="pickText">Clique no mapa para marcar o local. Se não marcar, o sistema tenta localizar pelo endereço.</span>
+                        <button type="button" id="pickClear" hidden>Limpar</button>
+                    </div>
+                    <input type="hidden" id="relatoLat" name="latitude" disabled>
+                    <input type="hidden" id="relatoLng" name="longitude" disabled>
+                </div>
+                <div id="relatoMensagem" class="form-message" role="alert"></div>
+                <button type="submit" class="btn-main" id="enviarRelato" style="width:100%;">
+                    <i class="fa-solid fa-paper-plane"></i> Enviar relato
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div class="panel">
+        <h2 class="section-title">Meus relatos</h2>
+        <div id="meusRelatos"><p class="vazio">Carregando...</p></div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+    <script src="{% static 'leaflet/leaflet.js' %}"></script>
+    <script src="{% static 'js/mini_mapa.js' %}"></script>
+    <script>
+        const relatoForm = document.getElementById('relatoForm');
+        const relatoMensagem = document.getElementById('relatoMensagem');
+        const enviarBtn = document.getElementById('enviarRelato');
+        const relatoLat = document.getElementById('relatoLat');
+        const relatoLng = document.getElementById('relatoLng');
+        const pickText = document.getElementById('pickText');
+        const pickClear = document.getElementById('pickClear');
+        const PICK_HINT = pickText.textContent;
+
+        // Coordenadas só vão no envio depois que o morador clica no mapa
+        const miniMapa = criarMapaSelecao('pickMap', [{{ MAP_CENTER_LAT }}, {{ MAP_CENTER_LNG }}], {
+            aoMarcar: ({ lat, lng }) => {
+                relatoLat.value = lat;
+                relatoLng.value = lng;
+                relatoLat.disabled = false;
+                relatoLng.disabled = false;
+                pickText.textContent = `Local marcado: ${lat}, ${lng}`;
+                pickClear.hidden = false;
+            },
+            aoSemInternet: () => {
+                pickText.textContent = 'Sem conexão: o mapa não carregou. Você ainda pode enviar, e o sistema tenta localizar pelo endereço.';
+            },
+        });
+
+        function limparPonto() {
+            miniMapa.limpar();
+            relatoLat.value = '';
+            relatoLng.value = '';
+            relatoLat.disabled = true;
+            relatoLng.disabled = true;
+            pickText.textContent = PICK_HINT;
+            pickClear.hidden = true;
+        }
+        pickClear.addEventListener('click', limparPonto);
+
+        function textoDoErro(dados) {
+            if (!dados || typeof dados !== 'object') return 'Não foi possível enviar o relato.';
+            if (dados.detail) return dados.detail;
+            return Object.values(dados).flat().join(' ') || 'Não foi possível enviar o relato.';
+        }
+
+        function renderMeusRelatos(relatos) {
+            const box = document.getElementById('meusRelatos');
+            if (!relatos.length) {
+                box.innerHTML = '<p class="vazio">Você ainda não enviou nenhum relato.</p>';
+                return;
+            }
+            box.innerHTML = relatos.map((r) => `
+                <article class="relato-item">
+                    <div class="relato-topo">
+                        <span class="relato-local">${esc(r.nome)} - ${esc(r.bairro)}</span>
+                        <span class="status-badge ${esc(r.status)}">${esc(r.status_label)}</span>
+                    </div>
+                    <div class="relato-meta"><i class="fa-solid fa-water"></i> ${esc(r.nivel_estimado_label)} · <i class="fa-regular fa-clock"></i> ${fmtDate(r.data_hora)}</div>
+                    ${r.status === 'pendente' ? '<div class="relato-meta">Aguardando análise da Defesa Civil.</div>' : ''}
+                    ${r.status === 'aprovado' ? '<div class="relato-meta">Aprovado: já aparece no mapa. Obrigado!</div>' : ''}
+                    ${r.status === 'rejeitado' && r.motivo_rejeicao ? `<div class="relato-motivo"><strong>Motivo:</strong> ${esc(r.motivo_rejeicao)}</div>` : ''}
+                </article>`).join('');
+        }
+
+        async function carregarMeusRelatos() {
+            try {
+                renderMeusRelatos(await fetchAll('/api/relatos/?meus=1'));
+            } catch (error) {
+                console.error(error);
+                document.getElementById('meusRelatos').innerHTML = '<p class="vazio">Não foi possível carregar seus relatos.</p>';
+            }
+        }
+
+        relatoForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            relatoMensagem.textContent = '';
+            if (!relatoForm.nome.value.trim() || !relatoForm.bairro.value.trim() || !relatoForm.nivel_estimado.value) {
+                relatoMensagem.textContent = 'Preencha a rua, o bairro e até onde chegou a água.';
+                return;
+            }
+            enviarBtn.disabled = true;
+            enviarBtn.textContent = 'Enviando...';
+            try {
+                const response = await fetch('/api/relatos/', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                    body: new FormData(relatoForm),
+                });
+                const dados = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(textoDoErro(dados));
+                relatoForm.reset();
+                limparPonto();
+                avisar('Relato enviado! A Defesa Civil vai analisar.', 'sucesso');
+                carregarMeusRelatos();
+            } catch (error) {
+                relatoMensagem.textContent = error.message;
+            } finally {
+                enviarBtn.disabled = false;
+                enviarBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar relato';
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', carregarMeusRelatos);
+    </script>
+{% endblock %}
